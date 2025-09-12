@@ -13,6 +13,7 @@ License: CC-BY-4.0
 #
 import importlib
 import os
+import sys
 import re
 from pathlib import Path
 from typing import Any, Optional, Union
@@ -22,7 +23,50 @@ from project_kit import utils
 
 
 #
-# PUBLIC
+# UTILS
+#
+def load_job_config(job_path, version=None, project_root=None, pkit_config=None):
+    # get base job config
+    project_root, pkit_config = _project_root_and_pkit_config(project_root, pkit_config)
+    job_path = Path(job_path)
+    job_name = re.sub(c.PY_EXT_REGX, '', job_path.name)
+    job_folder = re.sub(f'{project_root}/', '', str(job_path.parent.resolve()))
+    if version:
+        path = f'{project_root}/jobs/{job_folder}/{job_name}/{version}.yaml'
+    else:
+        path = f'{project_root}/jobs/{job_folder}/{job_name}.yaml'
+    # check for env config
+    job_config = utils.read_yaml(path, safe=True)
+    default_env = job_config.pop(pkit_config['default_env_key'], None)
+    env = os.environ.get(pkit_config['project_kit_env_var_name'], default_env)
+    if env:
+        parts = path.split('/')
+        parts.insert(-1, env)
+        env_path = '/'.join(parts)
+        job_config.update(utils.read_yaml(env_path, safe=True))
+        print('==', env_path, job_config)
+    return job_config
+
+
+def load_job_module(module_path, project_root=None, pkit_config=None):
+    """ load job module by name
+    """
+    if module_path[0] != '/':
+        project_root, pkit_config = _project_root_and_pkit_config(project_root, pkit_config)
+        parts = [
+            project_root,
+            pkit_config['jobs_folder'],
+            re.sub(c.PY_EXT_REGX, '', module_path)]
+        module_path = f'{"/".join(parts)}.py'
+    spec = importlib.util.spec_from_file_location("module.name", module_path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["module.name"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+#
+# MAIN
 #
 class ConfigHandler:
     """Handle project configuration using YAML files, constants, and environment variables.
@@ -76,28 +120,54 @@ class ConfigHandler:
         ValueError: If configuration attempts to overwrite constants or .pkit not found
         KeyError: If attempting to access non-existent configuration key without default
     """
-
     def __init__(self, module_path: Optional[str] = None) -> None:
         """Initialize ConfigHandler.
         
         Args:
             module_path: Optional path to module for constants import
         """
-        self.project_root = utils.dir_search(c.PKIT_CONFIG_FILENAME)
-        self.pkit_config = utils.read_yaml(f'{self.project_root}/{c.PKIT_CONFIG_FILENAME}')
+        self.project_root, self.pkit_config = _project_root_and_pkit_config()
         self.constants = self._import_constants(module_path)
         self.config = self._load_config()
         self._check_protected_keys()
 
-    def update(self, **kwargs) -> None:
-        """Update configuration with keyword arguments.
-        
+    def update(self, *args: Union[str, dict], **kwargs) -> None:
+        """Update configuration
+
         Args:
+            *args:
+                - str: use as yaml path
+                - dict: Key-value pairs to update configuration with
+                - otherwise: throw error
             **kwargs: Key-value pairs to update configuration with
         """
+        for arg in args:
+            if isinstance(arg, dict):
+                self.config.update(arg)
+            elif isinstance(arg, str):
+                # if str starts with / let it be the full path
+                # else assume starts from proejct_root
+                # path = ...
+                # self.config.update(utils.read_yaml(path))
+                pass
+            else:
+                err = (
+                    'ch.update arg must be either '
+                    'a string (path to config-file), or '
+                    'a dict (key-value pairs to update config)')
+                raise ValueError(err)
         self.config.update(kwargs)
+        self._check_protected_keys()
 
-
+    def add_job_config(self, job_path, version=None):
+        """ add job config """
+        job_config = load_job_config(
+            job_path,
+            version=version,
+            project_root=self.project_root,
+            pkit_config=self.pkit_config)
+        self.config.update(job_config)
+        self._check_protected_keys()
 
     def get(self, key: str, default: Any = None) -> Any:
         """Get configuration value with default fallback.
@@ -124,8 +194,6 @@ class ConfigHandler:
             value = self[value]
         return value
 
-
-
     def __contains__(self, key) -> bool:
         """Check if key exists in configuration or constants.
         
@@ -146,7 +214,6 @@ class ConfigHandler:
                 contains = hasattr(self.constants, key)
             return contains
         return False
-
 
     def __getitem__(self, key: str) -> Any:
         """Get configuration value (raises error if key does not exist).
@@ -171,7 +238,6 @@ class ConfigHandler:
         else:
             return value
 
-
     def __getattr__(self, key: str) -> Any:
         """Get configuration value as attribute.
         
@@ -188,7 +254,6 @@ class ConfigHandler:
         """
         return self.__getitem__(key)
 
-
     def __repr__(self) -> str:
         """Return string representation of ConfigHandler."""
         rep = (
@@ -196,7 +261,6 @@ class ConfigHandler:
                 f'- constants: {self.constants}\\n'
                 f'- config: {self.config}')
         return rep
-
 
     #
     # INTERNAL
@@ -220,7 +284,6 @@ class ConfigHandler:
                 pass
         return constants_module
 
-
     def _load_config(self) -> dict:
         """Load configuration, adding environment-specific config if it exists.
         
@@ -228,13 +291,12 @@ class ConfigHandler:
             Dictionary containing merged configuration data
         """
         config_dir = f'{self.project_root}/{self.pkit_config["config_folder"]}'
-        config = utils.read_yaml(f'{config_dir}/{self.pkit_config["config_filename"]}')
+        config = utils.read_yaml(f'{config_dir}/{self.pkit_config["config_filename"]}', safe=True)
         default_env = config.pop(self.pkit_config['default_env_key'], None)
         env = os.environ.get(self.pkit_config['project_kit_env_var_name'], default_env)
         if env:
-            config.update(utils.read_yaml(f'{config_dir}/{env}.yaml'))
+            config.update(utils.read_yaml(f'{config_dir}/{env}.yaml'), safe=True)
         return config
-
 
     def _check_protected_keys(self) -> None:
         """Ensure user's config files do not overwrite constants.py values.
@@ -250,3 +312,15 @@ class ConfigHandler:
                     config_keys = self.config.keys()
                     if key in config_keys:
                         raise ValueError('Configuration cannot overwrite constants')
+
+
+#
+# INTERNAL
+#
+def _project_root_and_pkit_config(project_root=None, pkit_config=None):
+    """(if necessary) get project_root and load pkit_config"""
+    if project_root is None:
+        project_root = utils.dir_search(c.PKIT_CONFIG_FILENAME)
+    if pkit_config is None:
+        pkit_config = utils.read_yaml(f'{project_root}/{c.PKIT_CONFIG_FILENAME}')
+    return project_root, pkit_config
