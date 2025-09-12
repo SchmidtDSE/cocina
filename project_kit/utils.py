@@ -124,15 +124,18 @@ class Timer:
         self.end_datetime = None
         self.lap_start = None
         self.lap_duration = None
+
     def start(self) -> Optional[str]:
         """Start the timer and return formatted start time."""
         if not self.start_datetime:
             self.start_datetime = datetime.now()
             return self.start_datetime.strftime(self.fmt)
         return None
+
     def start_lap(self) -> None:
         """Start a lap timer."""
         self.lap_start = datetime.now()
+
     def stop_lap(self):
         """Stop lap timer and return lap duration."""
         if self.lap_start:
@@ -140,26 +143,31 @@ class Timer:
             self.lap_start = None
             return self.lap_duration
         return None
+
     def timestamp(self) -> Optional[str]:
         """Return start time as formatted timestamp."""
         if self.start_datetime:
             return self.start_datetime.strftime(self.ts_fmt)
         return None
+
     def state(self) -> Optional[str]:
         """Return current elapsed time as string."""
         if self.start_datetime:
             return str(datetime.now() - self.start_datetime)
         return None
+
     def stop(self) -> str:
         """Stop the timer and return formatted stop time."""
         if not self.end_datetime:
             self.end_datetime = datetime.now()
         return self.end_datetime.strftime(self.fmt)
+
     def delta(self) -> Optional[str]:
         """Return total elapsed time as string."""
         if self.start_datetime and self.end_datetime:
             return str(self.end_datetime - self.start_datetime)
         return None
+
     def now(self, fmt: str = 'time') -> str:
         """Return current time in specified format.
 
