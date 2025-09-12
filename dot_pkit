@@ -1,0 +1,10 @@
+# .pkit
+# paths/folders/names
+config_folder: "config"
+config_filename: "config.yaml"
+jobs_folder: "jobs"
+log_folder: "../logs"
+constants_module_name: "constants"
+# env
+project_kit_env_var_name: "PROJECT_KIT.ENV_NAME"
+default_env_key: "DEFAULT_ENV"
