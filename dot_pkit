@@ -1,10 +1,18 @@
-# .pkit
-# paths/folders/names
-config_folder: "config"
-config_filename: "config.yaml"
-jobs_folder: "jobs"
-log_folder: "../logs"
-constants_module_name: "constants"
-# env
-project_kit_env_var_name: "PROJECT_KIT.ENV_NAME"
-default_env_key: "DEFAULT_ENV"
+# .pkit Configuration File
+# 
+# This file contains project_kit settings and must be placed in your project's root directory.
+# ConfigHandler uses this file to locate the project root and configure how configuration 
+# files are loaded. Copy this file to your project root and rename it to ".pkit" (without quotes).
+#
+# For more information, see: project_kit.config_handler.ConfigHandler
+
+# Path and Directory Configuration
+config_folder: "config"              # Directory containing your YAML configuration files
+config_filename: "config.yaml"       # Main configuration file name within config_folder
+jobs_folder: "jobs"                  # Directory for job runner scripts (if using job runner)
+log_folder: "../logs"                # Directory for log files (relative to project root)
+constants_module_name: "constants"   # Name of Python module containing project constants
+
+# Environment Configuration
+project_kit_env_var_name: "PROJECT_KIT.ENV_NAME"  # Environment variable name for environment-specific configs
+default_env_key: "DEFAULT_ENV"                    # Key in main config file that specifies default environment
