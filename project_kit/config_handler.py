@@ -26,6 +26,24 @@ from project_kit import utils
 # UTILS
 #
 def load_job_config(job_path, version=None, project_root=None, pkit_config=None):
+    """Load job-specific configuration from YAML files with environment support.
+
+    Loads configuration for a specific job, supporting both versioned and environment-specific
+    configurations. The function constructs paths based on job location and optionally loads
+    environment-specific overrides.
+
+    Args:
+        job_path: Path to the job file (used to determine job name and folder)
+        version: Optional version string for versioned job configs
+        project_root: Optional project root path (auto-detected if None)
+        pkit_config: Optional pkit configuration dict (auto-loaded if None)
+
+    Returns:
+        dict: Merged job configuration data with environment overrides applied
+
+    Raises:
+        FileNotFoundError: If job configuration file cannot be found
+    """
     # get base job config
     project_root, pkit_config = _project_root_and_pkit_config(project_root, pkit_config)
     job_path = Path(job_path)
@@ -49,7 +67,22 @@ def load_job_config(job_path, version=None, project_root=None, pkit_config=None)
 
 
 def load_job_module(module_path, project_root=None, pkit_config=None):
-    """ load job module by name
+    """Dynamically load a job module by file path.
+
+    Loads and executes a Python module for job processing. If a relative path is provided,
+    it constructs the full path using project root and jobs folder configuration.
+
+    Args:
+        module_path: Path to the Python module file (absolute or relative to jobs folder)
+        project_root: Optional project root path (auto-detected if None)
+        pkit_config: Optional pkit configuration dict (auto-loaded if None)
+
+    Returns:
+        module: The loaded and executed Python module
+
+    Raises:
+        ImportError: If module cannot be loaded or executed
+        FileNotFoundError: If module file cannot be found
     """
     if module_path[0] != '/':
         project_root, pkit_config = _project_root_and_pkit_config(project_root, pkit_config)
@@ -95,7 +128,13 @@ class ConfigHandler:
             value = ch.optional_setting
         
         # Update configuration
-        ch.update(new_setting='value')
+        ch.update(new_setting='value')                    # Keyword arguments
+        ch.update({'key': 'value'})                       # Dictionary merge
+        ch.update('config/extra.yaml')                    # Load from YAML file
+
+        # Job-specific configuration
+        ch.add_job_config('/path/to/job.py')              # Load job config
+        ch.add_job_config('/path/to/job.py', version='v2') # Versioned job config
         
         # With constants module
         ch = ConfigHandler('/path/to/my/module')
@@ -132,24 +171,34 @@ class ConfigHandler:
         self._check_protected_keys()
 
     def update(self, *args: Union[str, dict], **kwargs) -> None:
-        """Update configuration
+        """Update configuration with YAML files, dictionaries, or keyword arguments.
+
+        Supports multiple update methods: loading from YAML files (via string paths),
+        merging dictionary data, or updating with keyword arguments. All updates
+        are validated against protected constants.
 
         Args:
-            *args:
-                - str: use as yaml path
-                - dict: Key-value pairs to update configuration with
-                - otherwise: throw error
+            *args: Variable arguments supporting:
+                - str: Path to YAML file to load and merge (absolute or relative to project root)
+                - dict: Dictionary of key-value pairs to merge into configuration
             **kwargs: Key-value pairs to update configuration with
+
+        Raises:
+            ValueError: If arguments are invalid type or configuration conflicts with constants
+            FileNotFoundError: If YAML file path cannot be found
         """
         for arg in args:
             if isinstance(arg, dict):
                 self.config.update(arg)
             elif isinstance(arg, str):
                 # if str starts with / let it be the full path
-                # else assume starts from proejct_root
-                # path = ...
-                # self.config.update(utils.read_yaml(path))
-                pass
+                # else assume starts from project_root
+                if arg.startswith('/'):
+                    path = arg
+                else:
+                    path = f'{self.project_root}/{arg}'
+                yaml_config = utils.read_yaml(path, safe=True)
+                self.config.update(yaml_config)
             else:
                 err = (
                     'ch.update arg must be either '
@@ -160,7 +209,20 @@ class ConfigHandler:
         self._check_protected_keys()
 
     def add_job_config(self, job_path, version=None):
-        """ add job config """
+        """Load and merge job-specific configuration into the current configuration.
+
+        Loads configuration from job-specific YAML files and merges them into the
+        current ConfigHandler configuration. Supports versioned job configurations
+        and environment-specific overrides.
+
+        Args:
+            job_path: Path to the job file (used to determine configuration location)
+            version: Optional version string for versioned job configurations
+
+        Raises:
+            ValueError: If job configuration conflicts with protected constants
+            FileNotFoundError: If job configuration file cannot be found
+        """
         job_config = load_job_config(
             job_path,
             version=version,
@@ -295,7 +357,7 @@ class ConfigHandler:
         default_env = config.pop(self.pkit_config['default_env_key'], None)
         env = os.environ.get(self.pkit_config['project_kit_env_var_name'], default_env)
         if env:
-            config.update(utils.read_yaml(f'{config_dir}/{env}.yaml'), safe=True)
+            config.update(utils.read_yaml(f'{config_dir}/{env}.yaml', safe=True))
         return config
 
     def _check_protected_keys(self) -> None:
