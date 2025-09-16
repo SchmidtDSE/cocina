@@ -2,8 +2,8 @@
 
 Project Kit (PKIT) is a collection of tools for building out python projects. PKIT contains:
 
-1. ConfigHandler: used for mangaing constants and configuation for python projects
-2. ConfigArgs: used to manage job run configurations: allows the job specific args and kwargs for running a job to be handled through config files.
+1. [ConfigHandler](#confighandler): used for mangaing constants and configuation for python projects
+2. [ConfigArgs](#configargs): used to manage job run configurations: allows the job specific args and kwargs for running a job to be handled through config files.
 3. a job cli: a cli that makes it easy to launch and run jobs using yaml files for both project configuration and run configuration.
 4. utilities such as timers, loaders and custom loggers
 
