@@ -33,12 +33,44 @@ def pkit_path(
         *subfolders: Union[str, int, float],
         ext: Optional[str] = None,
         ext_regex: Optional[str] = None) -> str:
-    """
-    get path of args file
-    - a.b.custom_job (loads config/args/a/b/custom_job.yaml)
-    - a/b/custom_job (loads config/args/a/b/custom_job.yaml)
-    - a.b.custom_job.yml (loads config/args/a/b/custom_job.yml)
-    - /a/b/custom_job (loads /a/b/custom_job)
+    """Get path of configuration file with flexible path resolution.
+
+    Manages standard paths for a "project_kit" project. Here is an example:
+
+        ```python
+        path = pkit_path(
+            'a.b.c',
+            '/path/to/my/project',
+            'sub1',
+            'sub2',
+            ext='.yaml')
+
+        print(path) # ==> /path/to/my/project/sub1/sub2/a/b/c.yaml
+        ```
+
+    Note:
+        - <path> may or may not include the `project_root`
+        - if <path> beings with "/" and does not contain <project_root> the
+          the path remains unaltered.
+        - otherwise:
+            - allows for "dot-paths" (path.to.something) or file paths with "/"
+        - <project_root> will be added unless the path begins with a "/"
+
+    Examples with yaml ext and subfolders [config, args]:
+        - a.b.job_name (loads config/args/a/b/job_name.yaml)
+        - a/b/job_name (loads config/args/a/b/job_name.yaml)
+        - a.b.job_name.yml (loads config/args/a/b/job_name.yml)
+        - /a/b/job_name (loads /a/b/job_name - absolute path)
+
+    Args:
+        path: Path specification (dot or slash separated)
+        project_root: Project root directory
+        *subfolders: Additional subfolders to include in path
+        ext: File extension to add (default: None)
+        ext_regex: Regular expression to match and extract extension from path
+
+    Returns:
+        Resolved file path
     """
     path = re.sub(f'^{project_root}/', '', path)
     if path[0] == '/':
@@ -57,6 +89,16 @@ def pkit_path(
 
 
 def get_project_root(project_root: Optional[str] = None) -> str:
+    """Get project root directory.
+
+    Searches for .pkit file in parent directories if project_root not provided.
+
+    Args:
+        project_root: Optional explicit project root path
+
+    Returns:
+        Path to project root directory
+    """
     if project_root is None:
         project_root = utils.dir_search(c.PKIT_CONFIG_FILENAME)
     return project_root
@@ -67,8 +109,16 @@ def get_project_root(project_root: Optional[str] = None) -> str:
 #
 @dataclass
 class PKitConfig:
-    """
-    - dataclass for managing `.pkit` configuration
+    """Dataclass for managing .pkit configuration.
+
+    This dataclass holds all configuration settings loaded from the .pkit file
+    that define how Project Kit should locate and load configuration files.
+
+    Usage:
+        ```python
+        pkit = PKitConfig.init_for_project()
+        config_path = pkit.config_folder + '/' + pkit.config_filename
+        ```
     """
     config_folder: str
     args_config_folder: str
@@ -82,9 +132,16 @@ class PKitConfig:
 
     @classmethod
     def init_for_project(cls, project_root: Optional[str] = None) -> Self:
-        """
-        create new PKitConfig instance for project
-        - if project_root is none get project root
+        """Create new PKitConfig instance for project.
+
+        Loads configuration from .pkit file in project root directory.
+        If project_root is None, searches parent directories for .pkit file.
+
+        Args:
+            project_root: Optional explicit project root path
+
+        Returns:
+            PKitConfig instance with loaded configuration
         """
         project_root = get_project_root(project_root)
         pkit_config = utils.read_yaml(f'{project_root}/{c.PKIT_CONFIG_FILENAME}')
@@ -93,24 +150,36 @@ class PKitConfig:
 
 @dataclass
 class ArgsKwargs:
-    """
-    - dataclass with args, kwargs properties.
-    - used with ConfigArgs to allow from ca.method_name.(args|kwargs)
+    """Dataclass with args and kwargs properties.
+
+    Used with ConfigArgs to allow accessing method arguments as
+    ca.method_name.args and ca.method_name.kwargs.
+
+    Usage:
+        ```python
+        args_kwargs = ArgsKwargs.init_from_value({'args': [1, 2], 'kwargs': {'key': 'value'}})
+        some_method(*args_kwargs.args, **args_kwargs.kwargs)
+        ```
     """
     args: Sequence[Any] = field(default_factory=list)
     kwargs: dict[str, Any] = field(default_factory=dict)
 
     @staticmethod
     def args_kwargs_from_value(value: Any) -> tuple[list, dict]:
-        """
-        static method that takes a single value and extracts it into
-        args and kwargs.
+        """Extract args and kwargs from a single value.
 
-        - if value is dict:
-            - if keys that are exclusively args or kwargs extract values from dict
-            - otherwise args = [] and kwargs = value
-        - else if value is list/tuple, args = value, kwargs = {}
-        - else args = [value], kwargs = {}
+        Parsing rules:
+        - If value is dict:
+            - If keys are exclusively 'args' or 'kwargs': extract values from dict
+            - Otherwise: args = [] and kwargs = value
+        - If value is list/tuple: args = value, kwargs = {}
+        - Otherwise: args = [value], kwargs = {}
+
+        Args:
+            value: Value to parse into args and kwargs
+
+        Returns:
+            Tuple containing (args_list, kwargs_dict)
         """
         if isinstance(value, dict):
             keys_set = set(value.keys())
@@ -130,8 +199,13 @@ class ArgsKwargs:
 
     @classmethod
     def init_from_value(cls, value: Any) -> Self:
-        """
-        creates a ArgsKwargs from a value using `args_kwargs_from_value`
+        """Create ArgsKwargs from a value using args_kwargs_from_value.
+
+        Args:
+            value: Value to parse into ArgsKwargs instance
+
+        Returns:
+            ArgsKwargs instance with parsed args and kwargs
         """
         args, kwargs = cls.args_kwargs_from_value(value)
         return ArgsKwargs(args=args, kwargs=kwargs)
@@ -172,7 +246,7 @@ class ConfigHandler:
         ch.update('config/extra.yaml')                    # Load from YAML file
 
         # Job-specific configuration
-        ch.add_job_config('/path/to/job.py')              # Load job config
+        ch.add_job_config('/path/to/job.py')               # Load job config
         ch.add_job_config('/path/to/job.py', version='v2') # Versioned job config
         
         # With constants module
@@ -252,9 +326,17 @@ class ConfigHandler:
         self.config = self.process_values(self.config)
         self._check_protected_keys()
 
-    def process_values(self, config: dict):
-        """ given a configuration dict replace all values that are
-        strings whose VALUE is a key in CONSTANTS or CONFIG of CH
+    def process_values(self, config: dict) -> dict:
+        """Process configuration values by replacing string keys.
+
+        Given a configuration dict, replace all values that are strings whose
+        and whose value is in config-handler-instance.
+
+        Args:
+            config: Configuration dictionary to process
+
+        Returns:
+            Processed configuration dictionary with replaced values
         """
         return utils.replace_dictionary_values(config, self.config)
 
@@ -354,7 +436,7 @@ class ConfigHandler:
     #
     # INTERNAL
     #
-    def _import_constants(self, module_path: Optional[str]):
+    def _import_constants(self, module_path: Optional[str]) -> Optional[Any]:
         """Import constants module if it exists.
         
         Args:
@@ -374,11 +456,11 @@ class ConfigHandler:
                 pass
         return constants_module
 
-    def _config_and_environment(self) -> dict:
+    def _config_and_environment(self) -> tuple[dict, Optional[str]]:
         """Load configuration, adding environment-specific config if it exists.
         
         Returns:
-            tuple: config dictionary and env-name
+            Tuple containing config dictionary and environment name
         """
         config_path = pkit_path(
             self.pkit.config_filename,
@@ -416,43 +498,47 @@ class ConfigHandler:
 
 
 class ConfigArgs:
-    """
+    """Manage job-specific configuration and method arguments.
 
-    1. sets ConfigHandler (ch)
+    ConfigArgs provides a unified interface for loading job configuration files
+    and accessing method arguments in a structured way. It integrates with
+    ConfigHandler to provide configuration management for job execution.
 
-    2. loads a arg-config-dict from path/do-path
+    The class performs the following operations:
+    1. Sets up ConfigHandler for configuration management
+    2. Loads argument configuration from specified path
+    3. Processes configuration with environment-specific overrides
+    4. Creates ArgsKwargs attributes for each method in the config
 
-        arg_config = job_name (loads config/args/job_name)
-        arg_config = a.b.job_name (loads config/args/a/b/job_name.yaml)
-        arg_config = a/b/job_name (loads config/args/a/b/job_name.yaml)
-        arg_config = /a/b/job_name (loads /a/b/job_name)
-        ** yaml ext or none is fine
-        ** leading / => full path otherwise project_root/config/args/
-        ** arg_config names can not include a "." except if yaml ext
+    Path Resolution:
+        - job_name: loads config/args/job_name.yaml
+        - a.b.job_name: loads config/args/a/b/job_name.yaml
+        - a/b/job_name: loads config/args/a/b/job_name.yaml
+        - /a/b/job_name: loads /a/b/job_name (absolute path)
 
-    3. process arg_config
-        - update ch with config/env from arg_config yaml
-        - replace values that are properties in ch
-
-    4. for all "property_names" (names of methods) in arg_config
-       set corresponding ArgsKwargs instance values
-
+    Warning:
+        - Config names cannot include "." except for YAML extension
 
     Usage:
-
         ```python
-        ca = ConfigArgs()
+        ca = ConfigArgs('my_job')
         some_method(*ca.some_method.args, **ca.some_method.kwargs)
+
+        # Import and run the job module
+        job_module = ca.import_job_module()
+        job_module.run(*ca.run.args, **ca.run.kwargs)
         ```
     """
     def __init__(self,
             config_path: Optional[str] = None,
             user_config: Optional[dict] = None,
             config_handler: Optional[ConfigHandler] = None) -> None:
-        """Initialize ConfigHandler.
+        """Initialize ConfigArgs.
 
         Args:
-            module_path: Optional path to module for constants import
+            config_path: Path to job configuration file (relative to project_root/config/args/)
+            user_config: Optional dictionary of user configuration overrides
+            config_handler: Optional existing ConfigHandler instance to use
         """
         # set/load config_handler
         if config_handler:
@@ -491,14 +577,17 @@ class ConfigArgs:
         self.property_names = list(self.args_config.keys())
         self._set_arg_kwargs()
 
-    def import_job_module(self):
-        """ helper to import job module
-        Usage:
+    def import_job_module(self) -> Any:
+        """Helper to import job module.
 
+        Usage:
             ```python
             ca = ConfigArgs(job)
             job_module = ca.import_job_module()
             ```
+
+        Returns:
+            Imported job module object
         """
         return utils.import_module_from_path(self.job_path)
 
@@ -512,6 +601,7 @@ class ConfigArgs:
     #
     # INTERNAL
     #
-    def _set_arg_kwargs(self):
+    def _set_arg_kwargs(self) -> None:
+        """Set ArgsKwargs attributes for each property in args_config."""
         for k, v in self.args_config.items():
             setattr(self, k, ArgsKwargs.init_from_value(v))
