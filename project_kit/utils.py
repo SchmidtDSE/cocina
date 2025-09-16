@@ -11,6 +11,8 @@ License: CC-BY-4.0
 #
 # IMPORTS
 #
+import sys
+import importlib.util
 import re
 from datetime import datetime
 from pathlib import Path
@@ -94,6 +96,16 @@ def read_yaml(path: str, *key_path: str, safe: bool = False) -> Any:
         return dict()
     else:
         raise ValueError(f'{path} does not exist')
+
+
+def import_module_from_path(path: str):
+    """ import a module from file path
+    """
+    spec = importlib.util.spec_from_file_location("module.name", path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["module.name"] = module
+    spec.loader.exec_module(module)
+    return module
 
 #
 # CORE
