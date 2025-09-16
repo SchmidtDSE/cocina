@@ -367,9 +367,10 @@ class ConfigHandler:
         if module_path:
             module_path = str(Path(module_path).resolve())
             module_name = re.sub(f'{self.project_root}/', '', module_path).split('/', 1)[0]
+            dot_path = f'{module_name}.{self.pkit.constants_module_name}'
             try:
-                constants_module = importlib.import_module(f'{module_name}.{self.pkit.constants_module_name}')
-            except ImportError:
+                constants_module = importlib.import_module(dot_path)
+            except ImportError as e:
                 pass
         return constants_module
 
