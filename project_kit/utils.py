@@ -14,9 +14,10 @@ License: CC-BY-4.0
 import sys
 import importlib.util
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Optional
+from types import ModuleType
 import yaml
 
 
@@ -30,7 +31,7 @@ TIME_STAMP_FORMAT: str = '%Y%m%d-%H%M%S'
 
 
 #
-# PUBLIC
+# IO
 #
 def dir_search(
         *search_names: str,
@@ -98,8 +99,14 @@ def read_yaml(path: str, *key_path: str, safe: bool = False) -> Any:
         raise ValueError(f'{path} does not exist')
 
 
-def import_module_from_path(path: str):
-    """ import a module from file path
+def import_module_from_path(path: str) -> ModuleType:
+    """Import a module from file path.
+
+    Args:
+        path: Path to the Python module file to import
+
+    Returns:
+        Imported module object
     """
     spec = importlib.util.spec_from_file_location("module.name", path)
     module = importlib.util.module_from_spec(spec)
@@ -107,13 +114,22 @@ def import_module_from_path(path: str):
     spec.loader.exec_module(module)
     return module
 
+
 #
 # CORE
 #
-def replace_dictionary_values(value: Any, update_dict: dict) -> dict:
-    """
-    replace any values in value-dictionary
-    that are keys in update_dict
+def replace_dictionary_values(value: Any, update_dict: dict) -> Any:
+    """Replace any values in value-dictionary that are keys in update_dict.
+
+    Recursively traverses dictionaries and lists, replacing string values
+    that match keys in update_dict with corresponding values.
+
+    Args:
+        value: Dictionary, list, or other value to process
+        update_dict: Dictionary containing replacement key-value pairs
+
+    Returns:
+        Processed value with replacements applied
     """
     if isinstance(value, dict):
         return {k: replace_dictionary_values(v, update_dict) for k, v in value.items()}
@@ -124,10 +140,20 @@ def replace_dictionary_values(value: Any, update_dict: dict) -> dict:
     else:
         return value
 
-def safe_join(*parts, sep='/', ext=None):
-    """
-    join together non-null values
-    add possible ext
+
+def safe_join(*parts, sep: str = '/', ext: Optional[str] = None) -> str:
+    """Join together non-null values with optional extension.
+
+    Filters out None/empty values and joins remaining parts with separator.
+    Optionally adds file extension.
+
+    Args:
+        *parts: Parts to join (None/empty values will be filtered out)
+        sep: Separator to use for joining (default: '/')
+        ext: Optional file extension to add (default: None)
+
+    Returns:
+        Joined string with optional extension
     """
     parts = [str(v) for v in parts if v]
     result = sep.join(parts)
@@ -183,8 +209,12 @@ class Timer:
         """Start a lap timer."""
         self.lap_start = datetime.now()
 
-    def stop_lap(self):
-        """Stop lap timer and return lap duration."""
+    def stop_lap(self) -> Optional[timedelta]:
+        """Stop lap timer and return lap duration.
+
+        Returns:
+            Lap duration as timedelta object or None if no lap was started
+        """
         if self.lap_start:
             self.lap_duration = datetime.now() - self.lap_start
             self.lap_start = None
@@ -204,7 +234,11 @@ class Timer:
         return None
 
     def stop(self) -> str:
-        """Stop the timer and return formatted stop time."""
+        """Stop the timer and return formatted stop time.
+
+        Returns:
+            Formatted stop time string
+        """
         if not self.end_datetime:
             self.end_datetime = datetime.now()
         return self.end_datetime.strftime(self.fmt)
