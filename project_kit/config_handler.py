@@ -331,11 +331,25 @@ class ConfigHandler:
 #
 @dataclass
 class ArgsKwargs:
+    """
+    - dataclass with args, kwargs properties.
+    - used with ConfigArgs to allow from ca.method_name.(args|kwargs)
+    """
     args: Sequence[Any] = field(default_factory=list)
     kwargs: dict[str, Any] = field(default_factory=dict)
 
     @staticmethod
     def args_kwargs_from_value(value: Any) -> tuple[list, dict]:
+        """
+        static method that takes a single value and extracts it into
+        args and kwargs.
+
+        - if value is dict:
+            - if keys that are exclusively args or kwargs extract values from dict
+            - otherwise args = [] and kwargs = value
+        - else if value is list/tuple, args = value, kwargs = {}
+        - else args = [value], kwargs = {}
+        """
         if isinstance(value, dict):
             keys_set = set(value.keys())
             if keys_set.issubset(set(['args', 'kwargs'])):
@@ -354,31 +368,42 @@ class ArgsKwargs:
 
     @classmethod
     def init_from_value(cls, value: Any) -> Self:
+        """
+        creates a ArgsKwargs from a value using `args_kwargs_from_value`
+        """
         args, kwargs = cls.args_kwargs_from_value(value)
         return ArgsKwargs(args=args, kwargs=kwargs)
 
 
 class ConfigArgs:
     """
-    run job a.b.custom_job
 
-    # if job is not defined job = j1 (loads jobs/j1.py)
-    # job: custom_job (loads jobs/custom_job.py)
-    # job: a.b.custom_job (loads jobs/a/b/custom_job.py|yaml)
-    # job: a/b/custom_job (loads jobs/a/b/custom_job.py|yaml)
-    # job: /a/b/custom_job (loads /a/b/custom_job.py)
-    # ** py or no py
-    # ** leading / => full path otherwise project_root/jobs
-    # ** job names can not include a "." except if .py ext
+    1. sets ConfigHandler (ch)
+
+    2. loads a arg-config-dict from path/do-path
+
+        arg_config = job_name (loads config/args/job_name)
+        arg_config = a.b.job_name (loads config/args/a/b/job_name.yaml)
+        arg_config = a/b/job_name (loads config/args/a/b/job_name.yaml)
+        arg_config = /a/b/job_name (loads /a/b/job_name)
+        ** yaml ext or none is fine
+        ** leading / => full path otherwise project_root/config/args/
+        ** arg_config names can not include a "." except if yaml ext
+
+    3. process arg_config
+        - update ch with config/env from arg_config yaml
+        - replace values that are properties in ch
+
+    4. for all "property_names" (names of methods) in arg_config
+       set corresponding ArgsKwargs instance values
 
 
-    3. load ConfigHandler
-    4. addd jobs
-        - update ch with config from job yaml
-        - for method configs replace matching keys
-        - step1(*ch.step1.args, **ch.step1.kwargs)
-    5. load job module
+    Usage:
 
+        ```python
+        ca = ConfigArgs()
+        some_method(*ca.some_method.args, **ca.some_method.kwargs)
+        ```
     """
     def __init__(self,
             config_path: Optional[str] = None,
