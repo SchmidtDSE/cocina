@@ -8,6 +8,7 @@
 
 # Path and Directory Configuration
 config_folder: "config"              # Directory containing your YAML configuration files
+args_config_folder: "args"           # Directory containing your YAML arg-configuration files
 config_filename: "config.yaml"       # Main configuration file name within config_folder
 jobs_folder: "jobs"                  # Directory for job runner scripts (if using job runner)
 log_folder: "../logs"                # Directory for log files (relative to project root)
