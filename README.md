@@ -2,15 +2,19 @@
 
 Project Kit (PKIT) is a collection of tools for building out python projects. PKIT contains:
 
-1. a config_handler: used for mangaing constants and configuation for python projects
-2. a job runner: used for cleanly executing a sequence of script steps
-3. a config_interface: decorator that passes args in configuration files to python methods
-4. utilities such as timers and custom loggers
+1. ConfigHandler: used for mangaing constants and configuation for python projects
+2. ConfigArgs: used to manage job run configurations: allows the job specific args and kwargs for running a job to be handled through config files.
+3. a job cli: a cli that makes it easy to launch and run jobs using yaml files for both project configuration and run configuration.
+4. utilities such as timers, loaders and custom loggers
 
 ## Table of Contents
 
 - [Install/Requirements](#installrequirements)
 - [Quick Start](#quick-start)
+- [Configuration](#configuration)
+  - [Configuration Structure](#configuration-structure)
+  - [ConfigHandler](#confighandler)
+  - [ConfigArgs](#configargs)
 - [Components](#components)
   - [Config Handler](#config-handler)
   - [Job Runner](#job-runner)
@@ -59,7 +63,7 @@ pixi add --pypi $(cat pypi_package_names.txt)
 ## QUICK START
 
 ```python
-from project_kit.config_handler import ConfigHandler
+from project_kit.config_handler import ConfigHandler, ConfigArgs
 from project_kit.utils import Timer
 
 # Set up configuration (requires .pkit file in project root)
@@ -68,6 +72,10 @@ ch = ConfigHandler()
 # Access configuration values
 database_url = ch.get('database_url', 'sqlite:///default.db')
 api_key = ch.api_key  # Raises KeyError if not found
+
+# Load job-specific configuration
+ca = ConfigArgs('my_job')
+job_module = ca.import_job_module()
 
 # Use timer utility
 timer = Timer()
@@ -79,11 +87,180 @@ timer.stop()
 
 ---
 
+## CONFIGURATION
+
+### Configuration Structure
+
+Project Kit uses a standardized configuration structure that supports both general project settings and job-specific configurations.
+
+**Main Configuration Files (under `project_root/config/`):**
+
+1. **`config.yaml`** - General configuration across all environments
+   ```yaml
+   database_url: "postgresql://localhost/myapp"
+   api_timeout: 30
+   log_level: "INFO"
+   DEFAULT_ENV: "development"  # Default environment if not specified
+   ```
+
+2. **`<env_name>.yaml`** - Environment-specific values (overwrites `config.yaml`)
+   ```yaml
+   # config/production.yaml
+   database_url: "postgresql://prod-server/myapp"
+   log_level: "ERROR"
+   ```
+
+   ```yaml
+   # config/development.yaml
+   database_url: "sqlite:///dev.db"
+   log_level: "DEBUG"
+   ```
+
+**Job Configuration Files (under `project_root/config/args/`):**
+
+Job-specific configuration files contain method arguments and job settings:
+
+```yaml
+# config/args/data_processing.yaml
+job: "data_processing"  # Points to jobs/data_processing.py
+
+config:
+  batch_size: 1000
+  parallel_workers: 4
+
+process_data:
+  args: ["input.csv"]
+  kwargs:
+    output_format: "parquet"
+    validate: true
+
+validate_results:
+  threshold: 0.95
+  send_alerts: true
+```
+
+### ConfigHandler
+
+The [`ConfigHandler`](./project_kit/config_handler.py#L218) class provides unified configuration management using YAML files, constants, and environment variables.
+
+**Basic Usage:**
+```python
+from project_kit.config_handler import ConfigHandler
+
+# Initialize with automatic project root detection
+ch = ConfigHandler()
+
+# Access configuration values
+db_url = ch.get('database_url', 'default_value')  # With fallback
+api_key = ch['api_key']                          # Direct access (raises KeyError if missing)
+timeout = ch.api_timeout                         # Attribute access
+
+# Check if key exists
+if 'optional_setting' in ch:
+    value = ch.optional_setting
+
+# Update configuration at runtime
+ch.update(new_setting='value')                   # Keyword arguments
+ch.update({'batch_size': 500})                   # Dictionary merge
+ch.update('config/additional.yaml')              # Load from YAML file
+```
+
+**Environment-Specific Loading:**
+```bash
+# Set environment variable to load config/production.yaml
+export PROJECT_KIT.ENV_NAME=production
+
+# Or use development environment
+export PROJECT_KIT.ENV_NAME=development
+```
+
+**With Constants Module:**
+```python
+# If you have a constants.py module
+ch = ConfigHandler('/path/to/your/module')
+
+# Constants take precedence over config files
+# Config files cannot overwrite constants (protection)
+```
+
+### ConfigArgs
+
+The [`ConfigArgs`](./project_kit/config_handler.py#L501) class manages job-specific configuration and method arguments, providing structured access to job parameters.
+
+**Basic Usage:**
+```python
+from project_kit.config_handler import ConfigArgs
+
+# Load job configuration
+ca = ConfigArgs('data_processing')  # Loads config/args/data_processing.yaml
+
+# Access method arguments
+process_data_method(*ca.process_data.args, **ca.process_data.kwargs)
+validate_results(**ca.validate_results.kwargs)
+
+# Import and run the job module
+job_module = ca.import_job_module()  # Imports jobs/data_processing.py
+job_module.main(*ca.main.args, **ca.main.kwargs)
+```
+
+**Advanced Usage:**
+```python
+# Use with existing ConfigHandler
+ch = ConfigHandler()
+ca = ConfigArgs('my_job', config_handler=ch)
+
+# Override configuration at runtime
+user_overrides = {'batch_size': 2000}
+ca = ConfigArgs('my_job', user_config=user_overrides)
+
+# Access all available method configurations
+print(f"Available methods: {ca.property_names}")
+for method_name in ca.property_names:
+    args_kwargs = getattr(ca, method_name)
+    print(f"{method_name}: args={args_kwargs.args}, kwargs={args_kwargs.kwargs}")
+```
+
+**Job Configuration File Structure:**
+```yaml
+# config/args/example_job.yaml
+job: "data_pipeline"           # Points to jobs/data_pipeline.py
+
+# Global configuration updates
+config:
+  database_url: "sqlite:///job.db"
+
+# Environment-specific overrides
+env:
+  production:
+    database_url: "postgresql://prod/job"
+  development:
+    debug_mode: true
+
+# Method configurations
+extract_data:
+  args: ["source_table"]
+  kwargs:
+    limit: 10000
+    filter_active: true
+
+transform_data:
+  batch_size: 500
+  parallel: true
+
+load_data:
+  args: ["target_table"]
+  kwargs:
+    if_exists: "replace"
+    index: false
+```
+
+---
+
 ## COMPONENTS
 
 ### Config Handler
 
-The config_handler module provides the `ConfigHandler` class for unified configuration management across your project. It supports YAML configuration files, environment-specific overrides, and integration with project constants.
+The [`config_handler`](./project_kit/config_handler.py) module provides the `ConfigHandler` class for unified configuration management across your project. See the [Configuration](#configuration) section for detailed usage examples and configuration structure.
 
 **Key Features:**
 - Automatic project root detection via `.pkit` file
@@ -155,9 +332,10 @@ default_env_key: "DEFAULT_ENV"                    # Key in main config file that
 ## DOCUMENTATION
 
 For detailed API documentation, see the docstrings in each module:
-- `project_kit.config_handler.ConfigHandler` - Main configuration class
-- `project_kit.utils` - Utility functions and Timer class
-- `project_kit.constants` - Project constants
+- [`project_kit.config_handler.ConfigHandler`](./project_kit/config_handler.py#L218) - Main configuration class
+- [`project_kit.config_handler.ConfigArgs`](./project_kit/config_handler.py#L501) - Job-specific configuration management
+- [`project_kit.utils`](./project_kit/utils.py) - Utility functions and Timer class
+- [`project_kit.constants`](./project_kit/constants.py) - Project constants
 
 ---
 
