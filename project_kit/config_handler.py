@@ -40,6 +40,7 @@ def pkit_path(
     - a.b.custom_job.yml (loads config/args/a/b/custom_job.yml)
     - /a/b/custom_job (loads /a/b/custom_job)
     """
+    path = re.sub(f'^{project_root}/', '', path)
     if path[0] == '/':
         return path
     else:
@@ -296,12 +297,23 @@ class ConfigHandler:
         Returns:
             tuple: config dictionary and env-name
         """
-        config_dir = f'{self.project_root}/{self.pkit_config["config_folder"]}'
-        config = utils.read_yaml(f'{config_dir}/{self.pkit_config["config_filename"]}', safe=True)
+        config_path = pkit_path(
+            self.pkit_config["config_filename"],
+            self.project_root,
+            self.pkit_config["config_folder"],
+            ext_regex=c.YAML_EXT_REGX,
+            ext='.yaml')
+        config = utils.read_yaml(config_path, safe=True)
         default_env = config.pop(self.pkit_config['default_env_key'], None)
         environment_name = os.environ.get(self.pkit_config['project_kit_env_var_name'], default_env)
         if environment_name:
-            config.update(utils.read_yaml(f'{config_dir}/{environment_name}.yaml', safe=True))
+            env_path = pkit_path(
+                self.project_root,
+                self.pkit_config["config_folder"],
+                environment_name,
+                ext_regex=c.YAML_EXT_REGX,
+                ext='.yaml')
+            config.update(utils.read_yaml(env_path, safe=True))
         return config, environment_name
 
     def _check_protected_keys(self) -> None:
