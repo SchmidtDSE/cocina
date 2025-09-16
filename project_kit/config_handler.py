@@ -56,8 +56,89 @@ def pkit_path(
     return utils.safe_join(*parts, ext=ext)
 
 
+def get_project_root(project_root: Optional[str] = None) -> str:
+    if project_root is None:
+        project_root = utils.dir_search(c.PKIT_CONFIG_FILENAME)
+    return project_root
+
+
 #
-# MAIN
+# DATA CLASSES
+#
+@dataclass
+class PKitConfig:
+    """
+    - dataclass for managing `.pkit` configuration
+    """
+    config_folder: str
+    args_config_folder: str
+    config_filename: str
+    jobs_folder: str
+    constants_module_name: str
+    project_kit_env_var_name: str
+    default_env_key: str
+    log_folder: Optional[str] = None
+
+
+    @classmethod
+    def init_for_project(cls, project_root: Optional[str] = None) -> Self:
+        """
+        create new PKitConfig instance for project
+        - if project_root is none get project root
+        """
+        project_root = get_project_root(project_root)
+        pkit_config = utils.read_yaml(f'{project_root}/{c.PKIT_CONFIG_FILENAME}')
+        return PKitConfig(**pkit_config)
+
+
+@dataclass
+class ArgsKwargs:
+    """
+    - dataclass with args, kwargs properties.
+    - used with ConfigArgs to allow from ca.method_name.(args|kwargs)
+    """
+    args: Sequence[Any] = field(default_factory=list)
+    kwargs: dict[str, Any] = field(default_factory=dict)
+
+    @staticmethod
+    def args_kwargs_from_value(value: Any) -> tuple[list, dict]:
+        """
+        static method that takes a single value and extracts it into
+        args and kwargs.
+
+        - if value is dict:
+            - if keys that are exclusively args or kwargs extract values from dict
+            - otherwise args = [] and kwargs = value
+        - else if value is list/tuple, args = value, kwargs = {}
+        - else args = [value], kwargs = {}
+        """
+        if isinstance(value, dict):
+            keys_set = set(value.keys())
+            if keys_set.issubset(set(['args', 'kwargs'])):
+                args = value.get('args', [])
+                kwargs = value.get('kwargs', {})
+            else:
+                args = []
+                kwargs = value
+        elif isinstance(value, (list,tuple)):
+            args = value
+            kwargs = {}
+        else:
+            args = [value]
+            kwargs = {}
+        return args, kwargs
+
+    @classmethod
+    def init_from_value(cls, value: Any) -> Self:
+        """
+        creates a ArgsKwargs from a value using `args_kwargs_from_value`
+        """
+        args, kwargs = cls.args_kwargs_from_value(value)
+        return ArgsKwargs(args=args, kwargs=kwargs)
+
+
+#
+# CLASSES
 #
 class ConfigHandler:
     """Handle project configuration using YAML files, constants, and environment variables.
@@ -123,7 +204,8 @@ class ConfigHandler:
         Args:
             module_path: Optional path to module for constants import
         """
-        self.project_root, self.pkit_config = _project_root_and_pkit_config()
+        self.project_root = get_project_root()
+        self.pkit = PKitConfig.init_for_project(self.project_root)
         self.constants = self._import_constants(module_path)
         self.config, self.environment_name = self._config_and_environment()
         self.config = self.process_values(self.config)
@@ -286,7 +368,7 @@ class ConfigHandler:
             module_path = str(Path(module_path).resolve())
             module_name = re.sub(f'{self.project_root}/', '', module_path).split('/', 1)[0]
             try:
-                constants_module = importlib.import_module(f'{module_name}.{self.pkit_config["constants_module_name"]}')
+                constants_module = importlib.import_module(f'{module_name}.{self.pkit.constants_module_name}')
             except ImportError:
                 pass
         return constants_module
@@ -298,18 +380,18 @@ class ConfigHandler:
             tuple: config dictionary and env-name
         """
         config_path = pkit_path(
-            self.pkit_config["config_filename"],
+            self.pkit.config_filename,
             self.project_root,
-            self.pkit_config["config_folder"],
+            self.pkit.config_folder,
             ext_regex=c.YAML_EXT_REGX,
             ext='.yaml')
         config = utils.read_yaml(config_path, safe=True)
-        default_env = config.pop(self.pkit_config['default_env_key'], None)
-        environment_name = os.environ.get(self.pkit_config['project_kit_env_var_name'], default_env)
+        default_env = config.pop(self.pkit.default_env_key, None)
+        environment_name = os.environ.get(self.pkit.project_kit_env_var_name, default_env)
         if environment_name:
             env_path = pkit_path(
                 self.project_root,
-                self.pkit_config["config_folder"],
+                self.pkit.config_folder,
                 environment_name,
                 ext_regex=c.YAML_EXT_REGX,
                 ext='.yaml')
@@ -330,56 +412,6 @@ class ConfigHandler:
                     config_keys = self.config.keys()
                     if key in config_keys:
                         raise ValueError('Configuration cannot overwrite constants')
-
-
-
-#
-# MAIN
-#
-@dataclass
-class ArgsKwargs:
-    """
-    - dataclass with args, kwargs properties.
-    - used with ConfigArgs to allow from ca.method_name.(args|kwargs)
-    """
-    args: Sequence[Any] = field(default_factory=list)
-    kwargs: dict[str, Any] = field(default_factory=dict)
-
-    @staticmethod
-    def args_kwargs_from_value(value: Any) -> tuple[list, dict]:
-        """
-        static method that takes a single value and extracts it into
-        args and kwargs.
-
-        - if value is dict:
-            - if keys that are exclusively args or kwargs extract values from dict
-            - otherwise args = [] and kwargs = value
-        - else if value is list/tuple, args = value, kwargs = {}
-        - else args = [value], kwargs = {}
-        """
-        if isinstance(value, dict):
-            keys_set = set(value.keys())
-            if keys_set.issubset(set(['args', 'kwargs'])):
-                args = value.get('args', [])
-                kwargs = value.get('kwargs', {})
-            else:
-                args = []
-                kwargs = value
-        elif isinstance(value, (list,tuple)):
-            args = value
-            kwargs = {}
-        else:
-            args = [value]
-            kwargs = {}
-        return args, kwargs
-
-    @classmethod
-    def init_from_value(cls, value: Any) -> Self:
-        """
-        creates a ArgsKwargs from a value using `args_kwargs_from_value`
-        """
-        args, kwargs = cls.args_kwargs_from_value(value)
-        return ArgsKwargs(args=args, kwargs=kwargs)
 
 
 class ConfigArgs:
@@ -430,8 +462,8 @@ class ConfigArgs:
         args_config_path = pkit_path(
             config_path,
             self.config_handler.project_root,
-            self.config_handler.pkit_config['config_folder'],
-            self.config_handler.pkit_config['args_config_folder'],
+            self.config_handler.pkit.config_folder,
+            self.config_handler.pkit.args_config_folder,
             ext='.yaml',
             ext_regex=c.YAML_EXT_REGX)
         # load args (pop special values)
@@ -443,7 +475,7 @@ class ConfigArgs:
         self.job_path = pkit_path(
             re.sub(c.YAML_EXT_REGX, '', job or config_path),
             self.config_handler.project_root,
-            self.config_handler.pkit_config['jobs_folder'],
+            self.config_handler.pkit.jobs_folder,
             ext='.py',
             ext_regex=c.PY_EXT_REGX)
         # update ch with config/env
@@ -482,17 +514,3 @@ class ConfigArgs:
     def _set_arg_kwargs(self):
         for k, v in self.args_config.items():
             setattr(self, k, ArgsKwargs.init_from_value(v))
-
-
-
-
-#
-# INTERNAL
-#
-def _project_root_and_pkit_config(project_root=None, pkit_config=None):
-    """(if necessary) get project_root and load pkit_config"""
-    if project_root is None:
-        project_root = utils.dir_search(c.PKIT_CONFIG_FILENAME)
-    if pkit_config is None:
-        pkit_config = utils.read_yaml(f'{project_root}/{c.PKIT_CONFIG_FILENAME}')
-    return project_root, pkit_config
