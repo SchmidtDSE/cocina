@@ -16,7 +16,9 @@ import os
 import sys
 import re
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any, Optional, Union, Self, Sequence
+from dataclasses import dataclass, field
+
 
 from project_kit import constants as c
 from project_kit import utils
@@ -25,47 +27,6 @@ from project_kit import utils
 #
 # UTILS
 #
-def load_job_config(job_path, version=None, project_root=None, pkit_config=None):
-    """Load job-specific configuration from YAML files with environment support.
-
-    Loads configuration for a specific job, supporting both versioned and environment-specific
-    configurations. The function constructs paths based on job location and optionally loads
-    environment-specific overrides.
-
-    Args:
-        job_path: Path to the job file (used to determine job name and folder)
-        version: Optional version string for versioned job configs
-        project_root: Optional project root path (auto-detected if None)
-        pkit_config: Optional pkit configuration dict (auto-loaded if None)
-
-    Returns:
-        dict: Merged job configuration data with environment overrides applied
-
-    Raises:
-        FileNotFoundError: If job configuration file cannot be found
-    """
-    # get base job config
-    project_root, pkit_config = _project_root_and_pkit_config(project_root, pkit_config)
-    job_path = Path(job_path)
-    job_name = re.sub(c.PY_EXT_REGX, '', job_path.name)
-    job_folder = re.sub(f'{project_root}/', '', str(job_path.parent.resolve()))
-    if version:
-        path = f'{project_root}/jobs/{job_folder}/{job_name}/{version}.yaml'
-    else:
-        path = f'{project_root}/jobs/{job_folder}/{job_name}.yaml'
-    # check for env config
-    job_config = utils.read_yaml(path, safe=True)
-    default_env = job_config.pop(pkit_config['default_env_key'], None)
-    env = os.environ.get(pkit_config['project_kit_env_var_name'], default_env)
-    if env:
-        parts = path.split('/')
-        parts.insert(-1, env)
-        env_path = '/'.join(parts)
-        job_config.update(utils.read_yaml(env_path, safe=True))
-        print('==', env_path, job_config)
-    return job_config
-
-
 def load_job_module(module_path, project_root=None, pkit_config=None):
     """Dynamically load a job module by file path.
 
@@ -167,7 +128,8 @@ class ConfigHandler:
         """
         self.project_root, self.pkit_config = _project_root_and_pkit_config()
         self.constants = self._import_constants(module_path)
-        self.config = self._load_config()
+        self.config, self.environment_name = self._config_and_environment()
+        self.config = self.process_values(self.config)
         self._check_protected_keys()
 
     def update(self, *args: Union[str, dict], **kwargs) -> None:
@@ -193,6 +155,8 @@ class ConfigHandler:
             elif isinstance(arg, str):
                 # if str starts with / let it be the full path
                 # else assume starts from project_root
+                # TODO: MAKE SURE THIS LOGIC IS RIGHT under /config/?
+                # TODO: READ_YAML check for ext?
                 if arg.startswith('/'):
                     path = arg
                 else:
@@ -206,30 +170,14 @@ class ConfigHandler:
                     'a dict (key-value pairs to update config)')
                 raise ValueError(err)
         self.config.update(kwargs)
+        self.config = self.process_values(self.config)
         self._check_protected_keys()
 
-    def add_job_config(self, job_path, version=None):
-        """Load and merge job-specific configuration into the current configuration.
-
-        Loads configuration from job-specific YAML files and merges them into the
-        current ConfigHandler configuration. Supports versioned job configurations
-        and environment-specific overrides.
-
-        Args:
-            job_path: Path to the job file (used to determine configuration location)
-            version: Optional version string for versioned job configurations
-
-        Raises:
-            ValueError: If job configuration conflicts with protected constants
-            FileNotFoundError: If job configuration file cannot be found
+    def process_values(self, config: dict):
+        """ given a configuration dict replace all values that are
+        strings whose VALUE is a key in CONSTANTS or CONFIG of CH
         """
-        job_config = load_job_config(
-            job_path,
-            version=version,
-            project_root=self.project_root,
-            pkit_config=self.pkit_config)
-        self.config.update(job_config)
-        self._check_protected_keys()
+        return utils.replace_dictionary_values(config, self.config)
 
     def get(self, key: str, default: Any = None) -> Any:
         """Get configuration value with default fallback.
@@ -340,13 +288,14 @@ class ConfigHandler:
         if module_path:
             module_path = str(Path(module_path).resolve())
             module_name = re.sub(f'{self.project_root}/', '', module_path).split('/', 1)[0]
+            print('...', module_path, module_name, '---')
             try:
                 constants_module = importlib.import_module(f'{module_name}.{self.pkit_config["constants_module_name"]}')
             except ImportError:
                 pass
         return constants_module
 
-    def _load_config(self) -> dict:
+    def _config_and_environment(self) -> dict:
         """Load configuration, adding environment-specific config if it exists.
         
         Returns:
@@ -355,10 +304,10 @@ class ConfigHandler:
         config_dir = f'{self.project_root}/{self.pkit_config["config_folder"]}'
         config = utils.read_yaml(f'{config_dir}/{self.pkit_config["config_filename"]}', safe=True)
         default_env = config.pop(self.pkit_config['default_env_key'], None)
-        env = os.environ.get(self.pkit_config['project_kit_env_var_name'], default_env)
-        if env:
-            config.update(utils.read_yaml(f'{config_dir}/{env}.yaml', safe=True))
-        return config
+        environment_name = os.environ.get(self.pkit_config['project_kit_env_var_name'], default_env)
+        if environment_name:
+            config.update(utils.read_yaml(f'{config_dir}/{environment_name}.yaml', safe=True))
+        return config, environment_name
 
     def _check_protected_keys(self) -> None:
         """Ensure user's config files do not overwrite constants.py values.
@@ -374,6 +323,138 @@ class ConfigHandler:
                     config_keys = self.config.keys()
                     if key in config_keys:
                         raise ValueError('Configuration cannot overwrite constants')
+
+
+
+#
+# MAIN
+#
+@dataclass
+class ArgsKwargs:
+    args: Sequence[Any] = field(default_factory=list)
+    kwargs: dict[str, Any] = field(default_factory=dict)
+
+    @staticmethod
+    def args_kwargs_from_value(value: Any) -> tuple[list, dict]:
+        if isinstance(value, dict):
+            keys_set = set(value.keys())
+            if keys_set.issubset(set(['args', 'kwargs'])):
+                args = value.get('args', [])
+                kwargs = value.get('kwargs', {})
+            else:
+                args = []
+                kwargs = value
+        elif isinstance(value, (list,tuple)):
+            args = value
+            kwargs = {}
+        else:
+            args = [value]
+            kwargs = {}
+        return args, kwargs
+
+    @classmethod
+    def init_from_value(cls, value: Any) -> Self:
+        args, kwargs = cls.args_kwargs_from_value(value)
+        return ArgsKwargs(args=args, kwargs=kwargs)
+
+
+class ConfigArgs:
+    """
+    run job a.b.custom_job
+
+    # if job is not defined job = j1 (loads jobs/j1.py)
+    # job: custom_job (loads jobs/custom_job.py)
+    # job: a.b.custom_job (loads jobs/a/b/custom_job.py|yaml)
+    # job: a/b/custom_job (loads jobs/a/b/custom_job.py|yaml)
+    # job: /a/b/custom_job (loads /a/b/custom_job.py)
+    # ** py or no py
+    # ** leading / => full path otherwise project_root/jobs
+    # ** job names can not include a "." except if .py ext
+
+
+    3. load ConfigHandler
+    4. addd jobs
+        - update ch with config from job yaml
+        - for method configs replace matching keys
+        - step1(*ch.step1.args, **ch.step1.kwargs)
+    5. load job module
+
+    """
+    def __init__(self,
+            config_path: Optional[str] = None,
+            user_config: Optional[dict] = None,
+            config_handler: Optional[ConfigHandler] =None) -> None:
+        """Initialize ConfigHandler.
+
+        Args:
+            module_path: Optional path to module for constants import
+        """
+        if config_handler:
+            self.config_handler = config_handler
+        else:
+            self.config_handler = ConfigHandler()
+        args_config = utils.read_yaml(self._args_config_path(config_path))
+        config = args_config.pop('CONFIG', {})
+        env = args_config.pop('ENV', {})
+        if self.config_handler.environment_name:
+            env = env.pop(self.config_handler.environment_name, {})
+            config.update(env)
+        if user_config:
+            config.update(user_config)
+        self.config_handler.update(config)
+        # 3. process values before returning
+        self.args_config = self.config_handler.process_values(args_config)
+        self.property_names = list(self.args_config.keys())
+        self._set_arg_kwargs()
+
+    def __repr__(self) -> str:
+        """Return string representation of ConfigHandler."""
+        rep = 'ConfigArgs:\n'
+        for n in self.property_names:
+            rep += f'- {n}: {getattr(self, n)}\n'
+        return rep
+
+    #
+    # INTERNAL
+    #
+    def _set_arg_kwargs(self):
+        for k, v in self.args_config.items():
+            setattr(self, k, ArgsKwargs.init_from_value(v))
+
+    def _args_config_path(self, path):
+        """
+        get path of args file
+        - a.b.custom_job (loads config/args/a/b/custom_job.yaml)
+        - a/b/custom_job (loads config/args/a/b/custom_job.yaml)
+        - a.b.custom_job.yml (loads config/args/a/b/custom_job.yml)
+        - /a/b/custom_job (loads /a/b/custom_job)
+        """
+        if path[0] == '/':
+            return path
+        else:
+            match = re.search(c.YAML_EXT_REGX, path)
+            if match:
+                ext = match.group(0)
+                path = re.sub(c.YAML_EXT_REGX, '', path)
+            else:
+                ext = '.yaml'
+            path = re.sub(r'\.', '/', path)
+        return utils.safe_join(
+            self.config_handler.project_root,
+            self.config_handler.pkit_config['config_folder'],
+            self.config_handler.pkit_config['args_config_folder'],
+            path,
+            ext=ext)
+
+
+        path = Path(path)
+        ext = path.suffix
+        if ext not in ['', 'yml', 'yaml']:
+            raise ValueError(f"ext must be in ['', '.yml', '.yaml']: ext={ext}")
+        base = path.parent / path.stem
+        base = re.sub(r'\.', '/', base)
+        return base + ext
+
 
 
 #
