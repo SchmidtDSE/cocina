@@ -27,36 +27,32 @@ from project_kit import utils
 #
 # UTILS
 #
-def load_job_module(module_path, project_root=None, pkit_config=None):
-    """Dynamically load a job module by file path.
-
-    Loads and executes a Python module for job processing. If a relative path is provided,
-    it constructs the full path using project root and jobs folder configuration.
-
-    Args:
-        module_path: Path to the Python module file (absolute or relative to jobs folder)
-        project_root: Optional project root path (auto-detected if None)
-        pkit_config: Optional pkit configuration dict (auto-loaded if None)
-
-    Returns:
-        module: The loaded and executed Python module
-
-    Raises:
-        ImportError: If module cannot be loaded or executed
-        FileNotFoundError: If module file cannot be found
+def pkit_path(
+        path: str,
+        project_root: str,
+        *subfolders: Union[str, int, float],
+        ext: Optional[str] = None,
+        ext_regex: Optional[str] = None) -> str:
     """
-    if module_path[0] != '/':
-        project_root, pkit_config = _project_root_and_pkit_config(project_root, pkit_config)
-        parts = [
-            project_root,
-            pkit_config['jobs_folder'],
-            re.sub(c.PY_EXT_REGX, '', module_path)]
-        module_path = f'{"/".join(parts)}.py'
-    spec = importlib.util.spec_from_file_location("module.name", module_path)
-    module = importlib.util.module_from_spec(spec)
-    sys.modules["module.name"] = module
-    spec.loader.exec_module(module)
-    return module
+    get path of args file
+    - a.b.custom_job (loads config/args/a/b/custom_job.yaml)
+    - a/b/custom_job (loads config/args/a/b/custom_job.yaml)
+    - a.b.custom_job.yml (loads config/args/a/b/custom_job.yml)
+    - /a/b/custom_job (loads /a/b/custom_job)
+    """
+    if path[0] == '/':
+        return path
+    else:
+        if ext_regex:
+            match = re.search(ext_regex, path)
+            if match:
+                ext = match.group(0)
+                path = re.sub(ext_regex, '', path)
+            else:
+                ext = ext or ''
+        path = re.sub(r'\.', '/', path)
+        parts = [project_root] + list(subfolders) + [path]
+    return utils.safe_join(*parts, ext=ext)
 
 
 #
@@ -267,8 +263,8 @@ class ConfigHandler:
     def __repr__(self) -> str:
         """Return string representation of ConfigHandler."""
         rep = (
-                f'ConfigHandler:\\n'
-                f'- constants: {self.constants}\\n'
+                'ConfigHandler:\n'
+                f'- constants: {self.constants}\n'
                 f'- config: {self.config}')
         return rep
 
@@ -288,7 +284,6 @@ class ConfigHandler:
         if module_path:
             module_path = str(Path(module_path).resolve())
             module_name = re.sub(f'{self.project_root}/', '', module_path).split('/', 1)[0]
-            print('...', module_path, module_name, '---')
             try:
                 constants_module = importlib.import_module(f'{module_name}.{self.pkit_config["constants_module_name"]}')
             except ImportError:
@@ -299,7 +294,7 @@ class ConfigHandler:
         """Load configuration, adding environment-specific config if it exists.
         
         Returns:
-            Dictionary containing merged configuration data
+            tuple: config dictionary and env-name
         """
         config_dir = f'{self.project_root}/{self.pkit_config["config_folder"]}'
         config = utils.read_yaml(f'{config_dir}/{self.pkit_config["config_filename"]}', safe=True)
@@ -408,29 +403,59 @@ class ConfigArgs:
     def __init__(self,
             config_path: Optional[str] = None,
             user_config: Optional[dict] = None,
-            config_handler: Optional[ConfigHandler] =None) -> None:
+            config_handler: Optional[ConfigHandler] = None) -> None:
         """Initialize ConfigHandler.
 
         Args:
             module_path: Optional path to module for constants import
         """
+        # set/load config_handler
         if config_handler:
             self.config_handler = config_handler
         else:
             self.config_handler = ConfigHandler()
-        args_config = utils.read_yaml(self._args_config_path(config_path))
-        config = args_config.pop('CONFIG', {})
-        env = args_config.pop('ENV', {})
+        # load args-config yaml
+        args_config_path = pkit_path(
+            config_path,
+            self.config_handler.project_root,
+            self.config_handler.pkit_config['config_folder'],
+            self.config_handler.pkit_config['args_config_folder'],
+            ext='.yaml',
+            ext_regex=c.YAML_EXT_REGX)
+        # load args (pop special values)
+        args_config = utils.read_yaml(args_config_path)
+        job = args_config.pop('job', None)
+        config = args_config.pop('config', {})
+        env = args_config.pop('env', {})
+        # get path to job
+        self.job_path = pkit_path(
+            re.sub(c.YAML_EXT_REGX, '', job or config_path),
+            self.config_handler.project_root,
+            self.config_handler.pkit_config['jobs_folder'],
+            ext='.py',
+            ext_regex=c.PY_EXT_REGX)
+        # update ch with config/env
         if self.config_handler.environment_name:
             env = env.pop(self.config_handler.environment_name, {})
             config.update(env)
         if user_config:
             config.update(user_config)
         self.config_handler.update(config)
-        # 3. process values before returning
+        # replace values set to config_handler-keys
         self.args_config = self.config_handler.process_values(args_config)
         self.property_names = list(self.args_config.keys())
         self._set_arg_kwargs()
+
+    def import_job_module(self):
+        """ helper to import job module
+        Usage:
+
+            ```python
+            ca = ConfigArgs(job)
+            job_module = ca.import_job_module()
+            ```
+        """
+        return utils.import_module_from_path(self.job_path)
 
     def __repr__(self) -> str:
         """Return string representation of ConfigHandler."""
@@ -446,39 +471,6 @@ class ConfigArgs:
         for k, v in self.args_config.items():
             setattr(self, k, ArgsKwargs.init_from_value(v))
 
-    def _args_config_path(self, path):
-        """
-        get path of args file
-        - a.b.custom_job (loads config/args/a/b/custom_job.yaml)
-        - a/b/custom_job (loads config/args/a/b/custom_job.yaml)
-        - a.b.custom_job.yml (loads config/args/a/b/custom_job.yml)
-        - /a/b/custom_job (loads /a/b/custom_job)
-        """
-        if path[0] == '/':
-            return path
-        else:
-            match = re.search(c.YAML_EXT_REGX, path)
-            if match:
-                ext = match.group(0)
-                path = re.sub(c.YAML_EXT_REGX, '', path)
-            else:
-                ext = '.yaml'
-            path = re.sub(r'\.', '/', path)
-        return utils.safe_join(
-            self.config_handler.project_root,
-            self.config_handler.pkit_config['config_folder'],
-            self.config_handler.pkit_config['args_config_folder'],
-            path,
-            ext=ext)
-
-
-        path = Path(path)
-        ext = path.suffix
-        if ext not in ['', 'yml', 'yaml']:
-            raise ValueError(f"ext must be in ['', '.yml', '.yaml']: ext={ext}")
-        base = path.parent / path.stem
-        base = re.sub(r'\.', '/', base)
-        return base + ext
 
 
 
