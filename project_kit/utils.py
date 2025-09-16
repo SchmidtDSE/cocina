@@ -11,10 +11,10 @@ License: CC-BY-4.0
 #
 # IMPORTS
 #
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
-
 import yaml
 
 
@@ -64,6 +64,8 @@ def dir_search(
 def read_yaml(path: str, *key_path: str, safe: bool = False) -> Any:
     """Read and optionally extract part of a YAML file.
 
+    # TODO: READ_YAML check for ext?
+
     Usage:
         ```python
         data = read_yaml(path)
@@ -93,7 +95,40 @@ def read_yaml(path: str, *key_path: str, safe: bool = False) -> Any:
     else:
         raise ValueError(f'{path} does not exist')
 
+#
+# CORE
+#
+def replace_dictionary_values(value: Any, update_dict: dict) -> dict:
+    """
+    replace any values in value-dictionary
+    that are keys in update_dict
+    """
+    if isinstance(value, dict):
+        return {k: replace_dictionary_values(v, update_dict) for k, v in value.items()}
+    elif isinstance(value, list):
+        return [replace_dictionary_values(v, update_dict) for v in value]
+    elif isinstance(value, str):
+        return update_dict.get(value, value)
+    else:
+        return value
 
+def safe_join(*parts, sep='/', ext=None):
+    """
+    join together non-null values
+    add possible ext
+    """
+    parts = [str(v) for v in parts if v]
+    result = sep.join(parts)
+    if ext:
+        ext = re.sub(r'^\.', '', ext)
+        result = f'{result}.{ext}'
+    return result
+
+
+
+#
+# DATES AND TIMES
+#
 class Timer:
     """Simple timer class for measuring elapsed time.
 
