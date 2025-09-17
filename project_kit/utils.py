@@ -19,7 +19,7 @@ import yaml
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, List, Optional, Union
 from types import ModuleType
 from project_kit import constants as c
 
@@ -109,16 +109,26 @@ def safe_copy_yaml(
             file.write(processed_str)
 
 
-def write(dest: str, *lines: str, mode='w', strip=True, **kwargs):
-    """
-    FIX ME: write to file
+def write(dest: str, *lines: str, mode='w', strip=True, **kwargs) -> None:
+    """Write multiple lines to a file.
+
+    Args:
+        dest: Destination file path to write to
+        *lines: Variable number of lines to write to the file
+        mode: File open mode (default: 'w' for write)
+        strip: Whether to strip whitespace from lines (default: True)
+        **kwargs: Additional keyword arguments (currently unused)
+
+    Usage:
+        >>> write('output.txt', 'Line 1', 'Line 2', 'Line 3')
+        >>> write('append.txt', 'New line', mode='a')
     """
     with open(dest, mode) as file:
         for line in lines:
             line = str(line)
             if strip:
                 line = line.strip()
-            file.write('\n{line}')
+            file.write(f'\n{line}')
 
 
 def import_module_from_path(path: str) -> ModuleType:
@@ -171,9 +181,21 @@ def dir_search(
         raise ValueError(f'{search_names} file(s) not found at depth {max_depth}')
 
 
-def inspect_tree(max_depth=4, sep='.', as_list=False):
-    """
-    FIX ME:
+def inspect_tree(max_depth: int = 4, sep: str = '.', as_list: bool = False) -> Union[List[str], str]:
+    """Inspect the call stack and return function names up to max_depth.
+
+    Args:
+        max_depth: Maximum depth of call stack to inspect (default: 4)
+        sep: Separator to join function names when returning string (default: '.')
+        as_list: Whether to return as list of names or joined string (default: False)
+
+    Returns:
+        List of function names if as_list=True, otherwise joined string with separator
+
+    Usage:
+        >>> inspect_tree()  # Returns 'caller1.caller2.caller3'
+        >>> inspect_tree(as_list=True)  # Returns ['caller1', 'caller2', 'caller3']
+        >>> inspect_tree(sep='/')  # Returns 'caller1/caller2/caller3'
     """
     frames = inspect.stack()[1:max_depth+1]
     names = []
