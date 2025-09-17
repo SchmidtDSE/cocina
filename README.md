@@ -12,6 +12,7 @@ Project Kit (PKIT) is a collection of tools for building out python projects. PK
 
 - [ ] Logging/Printing
 - [ ] Multiple Jobs with 1 call to cli (?)
+- [ ] Rewrite README (other md-docs)
 
 ## Table of Contents
 
