@@ -10,6 +10,7 @@ import click
 from project_kit import constants as c
 from project_kit import utils
 from project_kit.config_handler import ConfigArgs, PKitConfig
+from project_kit.printer import Printer
 
 
 #
@@ -75,30 +76,35 @@ def job(
     print('TODO: ADD USER-ARGS?')
 
     pkit = PKitConfig.init_for_project()
-
+    printer = Printer(f'pkit.job.{job}', log_dir=pkit.log_dir)
+    printer.start(vspace=False)
+    pkit = PKitConfig.init_for_project()
     # Set environment if provided
     if env:
-        click.echo(f"Setting environment: {env}")
+        printer.message(f"Setting environment: {env}")
         os.environ[pkit.project_kit_env_var_name] = env
     try:
         # Load job configuration and execute
-        click.echo(f"🚀 Starting job: {job}")
+        printer.message(f"🚀 Starting job: {job}")
         ca = ConfigArgs(job)
         job_module = ca.import_job_module()
         # Execute the job
-        job_module.run(ca)
-        click.echo("✅ Job completed successfully!")
+        try:
+            job_module.run(ca, printer=printer)
+        except:
+            job_module.run(ca)
+        printer.stop("✅ Job completed successfully!")
     except FileNotFoundError as e:
-        click.echo(f"❌ Job configuration not found: {e}", err=True)
+        printer.stop(f"❌ Job configuration not found: {e}", err=True)
         sys.exit(1)
     except ImportError as e:
-        click.echo(f"❌ Failed to import job module: {e}", err=True)
+        printer.stop(f"❌ Failed to import job module: {e}", err=True)
         sys.exit(1)
     except AttributeError as e:
-        click.echo(f"❌ Job module missing 'run' function: {e}", err=True)
+        printer.stop(f"❌ Job module missing 'run' function: {e}", err=True)
         sys.exit(1)
     except Exception as e:
-        click.echo(f"❌ Job execution failed: {e}", err=True)
+        printer.stop(f"❌ Job execution failed: {e}", err=True)
         sys.exit(1)
 
 #
