@@ -8,10 +8,12 @@ version = "0.0.1"
 readme = "README.md"
 dependencies = ["pyyaml"]
 
+[project.scripts]
+pkit = "project_kit:cli.cli"
+
 [tool.setuptools]
 packages = [
 	"project_kit",
-	# "project_kit.utils"
 ]
 
 [tool.pixi.project]
