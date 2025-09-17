@@ -14,11 +14,13 @@ License: CC-BY-4.0
 import sys
 import importlib.util
 import re
+import yaml
+import json
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Optional
 from types import ModuleType
-import yaml
+from project_kit import constants as c
 
 
 #
@@ -97,6 +99,26 @@ def read_yaml(path: str, *key_path: str, safe: bool = False) -> Any:
         return dict()
     else:
         raise ValueError(f'{path} does not exist')
+
+
+def safe_copy_yaml(src: str, dest: str, force: bool = False, **replacements: str):
+    """ copy yaml file (with replacements) while preserving comments"""
+    file_exists = Path(dest).is_file()
+    if file_exists and (not force):
+        err = f'destination ({dest}) exists. use `force=True` to overwrite file'
+        raise ValueError(err)
+    else:
+        with open(src, "r") as file:
+            processed_str = ''
+            for line in file:
+                for k, v in replacements.items():
+                    if (v != c.PKIT_NOT_FOUND) and re.search(f'^{k}', line):
+                        line = f'{k}: {json.dumps(v)}'
+                    else:
+                        line = line.strip()
+                processed_str += line + '\n'
+        with open(dest, 'w') as file:
+            file.write(processed_str)
 
 
 def import_module_from_path(path: str) -> ModuleType:
