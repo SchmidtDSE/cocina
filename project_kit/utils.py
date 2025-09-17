@@ -101,8 +101,26 @@ def read_yaml(path: str, *key_path: str, safe: bool = False) -> Any:
         raise ValueError(f'{path} does not exist')
 
 
-def safe_copy_yaml(src: str, dest: str, force: bool = False, **replacements: str):
-    """ copy yaml file (with replacements) while preserving comments"""
+def safe_copy_yaml(
+        src: str,
+        dest: str,
+        force: bool = False,
+        **replacements: Any) -> None:
+    """Copy yaml files with replacement while preserving comments
+
+    Args:
+        src (str): path to source yaml file
+        dest (str): destination path for processed yaml file
+        force (bool = False): if <dest>-file exists:
+            - if <force> overwrite file
+            - otherwise raise error
+        **replacements (str): key-value pairs to replace value in
+            src-yaml-file. if
+
+    Raises:
+        ValueError: if <dest> exists and <force> is false
+
+    """
     file_exists = Path(dest).is_file()
     if file_exists and (not force):
         err = f'destination ({dest}) exists. use `force=True` to overwrite file'
