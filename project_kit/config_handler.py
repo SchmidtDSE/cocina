@@ -126,9 +126,21 @@ class PKitConfig:
     constants_module_name: str
     project_kit_env_var_name: str
     default_env_key: str
-    log_folder: Optional[str] = None
+    log_dir: Optional[str] = None
     constants_package_name: Optional[str] = None
 
+    @classmethod
+    def file_path(cls, project_root: Optional[str] = None) -> Self:
+        """gets path for .pkit file
+
+        Args:
+            project_root: Optional explicit project root path
+
+        Returns:
+            str: project_root/.pkit
+        """
+        project_root = get_project_root(project_root)
+        return f'{project_root}/{c.PKIT_CONFIG_FILENAME}'
 
     @classmethod
     def init_for_project(cls, project_root: Optional[str] = None) -> Self:
@@ -143,8 +155,7 @@ class PKitConfig:
         Returns:
             PKitConfig instance with loaded configuration
         """
-        project_root = get_project_root(project_root)
-        pkit_config = utils.read_yaml(f'{project_root}/{c.PKIT_CONFIG_FILENAME}')
+        pkit_config = utils.read_yaml(cls.file_path())
         return PKitConfig(**pkit_config)
 
 
