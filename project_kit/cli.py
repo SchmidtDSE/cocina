@@ -4,7 +4,11 @@ License:
     BSD, see LICENSE.md
 """
 from typing import Optional
+from pathlib import Path
+from pprint import pprint
 import click
+from project_kit import constants as c
+from project_kit import utils
 from project_kit.config_handler import ConfigArgs, PKitConfig
 
 
@@ -33,11 +37,20 @@ def cli(ctx):
 @click.pass_context
 def init(
         ctx,
-        log_dir: Optional[str] = None,
-        package: Optional[str] = None,
+        log_dir: Optional[str] = c.PKIT_NOT_FOUND,
+        package: Optional[str] = c.PKIT_NOT_FOUND,
         force: bool = False):
-    print('init:', log_dir, package, force)
-
+    src_pkit_path = Path(__file__).parent.parent / 'dot_pkit'
+    dest_pkit_path = PKitConfig.file_path()
+    utils.safe_copy_yaml(
+        src_pkit_path,
+        dest_pkit_path,
+        log_dir=log_dir,
+        constants_package_name=package,
+        force=force)
+    print(f'pkit: project initialized ({dest_pkit_path})')
+    pkit = PKitConfig.init_for_project()
+    pprint(pkit)
 
 @cli.command(name='job', help='job help text')
 @click.argument('job', type=str)
