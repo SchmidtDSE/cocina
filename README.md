@@ -9,7 +9,7 @@ Project Kit (PKIT) is a collection of tools for building out python projects. PK
 
 ## Table of Contents
 
-- [Install/Requirements](#installrequirements)
+- [Setup](#setup)
 - [Quick Start](#quick-start)
 - [PKit Configuration](#pkit-configuration)
 - [Configuration](#configuration)
@@ -23,8 +23,37 @@ Project Kit (PKIT) is a collection of tools for building out python projects. PK
 
 ---
 
-# Install/Requirements
+# Setup
 
+## Install
+
+Project will be added to pypi soon. for now here are the install steps:
+
+```bash
+git clone https://github.com/SchmidtDSE/project_kit.git
+```
+
+Then in your pyproject.toml add
+
+```toml
+[tool.pixi.pypi-dependencies]
+project_kit = { path = "your/path/to/project_kit", editable = true }
+```
+
+## Initialize
+
+PKit must be initialized. This can be managed through the CLI.
+
+```bash
+pixi run pkit init (--log_dir <relative-path-to-log-dir>) \
+                   (--package <main-package-name>) \
+                   (--force) \
+```
+
+(see details [below](#pkit-configuration))
+
+
+## Requirements
 Requirements are managed through a [Pixi](https://pixi.sh/latest) "project" (similar to a conda environment). After pixi is installed use `pixi run <cmd>` to ensure the correct project is being used. For example,
 
 ```bash
