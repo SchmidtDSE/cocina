@@ -17,9 +17,8 @@ import sys
 import re
 from pathlib import Path
 from typing import Any, Optional, Union, Self, Sequence
+from types import ModuleType
 from dataclasses import dataclass, field
-
-
 from project_kit import constants as c
 from project_kit import utils
 
@@ -128,6 +127,7 @@ class PKitConfig:
     project_kit_env_var_name: str
     default_env_key: str
     log_folder: Optional[str] = None
+    constants_package_name: Optional[str] = None
 
 
     @classmethod
@@ -266,21 +266,35 @@ class ConfigHandler:
         3. Default values provided to get() method
 
     Args:
-        module_path: Optional path to module containing constants to import
+        package_locator: Optional string used to help determine the location of a
+            "constants.py" file:
+            - None: use pkit.constants_package_name
+            - String containing "/":  path to a file withing the same package
+              as the constants.py file
+            - String NOT containing "/": the name of the package containg the
+              constants.py file
 
     Raises:
         ValueError: If configuration attempts to overwrite constants or .pkit not found
         KeyError: If attempting to access non-existent configuration key without default
     """
-    def __init__(self, module_path: Optional[str] = None) -> None:
+    def __init__(self, package_locator: Optional[str] = None, constants: Optional[ModuleType] = None) -> None:
         """Initialize ConfigHandler.
         
         Args:
-            module_path: Optional path to module for constants import
+            package_locator: Optional string used to help determine the location of a
+                "constants.py" file:
+                - None: use pkit.constants_package_name
+                - String containing "/":  path to a file withing the same package
+                  as the constants.py file
+                - String NOT containing "/": the name of the package containg the
+                  constants.py file
+            constants: Optional ModuleType. if provided <package_locator> ignored,
+                and ch.constants = <constants>
         """
         self.project_root = get_project_root()
         self.pkit = PKitConfig.init_for_project(self.project_root)
-        self.constants = self._import_constants(module_path)
+        self.constants = constants or self._import_constants(package_locator)
         self.config, self.environment_name = self._config_and_environment()
         self.config = self.process_values(self.config)
         self._check_protected_keys()
@@ -436,21 +450,33 @@ class ConfigHandler:
     #
     # INTERNAL
     #
-    def _import_constants(self, module_path: Optional[str]) -> Optional[Any]:
+    def _import_constants(self,
+            package_locator: Optional[str] = None) -> Union[ModuleType, None]:
         """Import constants module if it exists.
         
         Args:
-            module_path: Path to module containing constants
-            
+            package_locator: Optional string used to help determine the location of a
+                "constants.py" file:
+                - None: use pkit.constants_package_name
+                - String containing "/":  path to a file withing the same package
+                  as the constants.py file
+                - String NOT containing "/": the name of the package containg the
+                  constants.py file
+
         Returns:
             Imported constants module or None
         """
+        if package_locator is None:
+            package_name = self.pkit.constants_package_name
+        elif ('/' in package_locator):
+            locator_path = str(Path(package_locator).resolve())
+            package_name = re.sub(f'{self.project_root}/', '', locator_path).split('/', 1)[0]
+        else:
+            package_name = package_locator
         constants_module = None
-        if module_path:
-            module_path = str(Path(module_path).resolve())
-            module_name = re.sub(f'{self.project_root}/', '', module_path).split('/', 1)[0]
-            dot_path = f'{module_name}.{self.pkit.constants_module_name}'
+        if package_locator:
             try:
+                dot_path = f'{package_name}.{self.pkit.constants_module_name}'
                 constants_module = importlib.import_module(dot_path)
             except ImportError as e:
                 pass

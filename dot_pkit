@@ -1,17 +1,52 @@
 # -------------------------------------------------------------------------------------------
-# .pkit Configuration File
+# .pkit Configuration File:
 # 
-# This file contains project_kit settings and must be placed in your project's root directory.
-# ConfigHandler uses this file to locate the project root and configure how configuration 
-# files are loaded. Copy this file to your project root and rename it to ".pkit" (without quotes).
+# This file contains project_kit settings and conventions. PKit use this file to:
 #
-# For more information, see: project_kit.config_handler.ConfigHandler
+# 1. set conventions: determine the location and names of key (job and config) files and
+#    environmental variables
+# 2. determine the project-root.
+#
+#
+# IMPORTANT: All project-kit projects must include a copy of this file (renamed to .pkit)
+#            located at the project root.
+#
+# Generate this file by running:
+#
+# ```bash
+# pixi run pkit init (--log_dir <relative-path-to-log-dir>) \
+#                    (--package <main-package-name>) \
+#                    (--force) \
+# ```
+#
+# (or copy this file to your project root and rename it to ".pkit".
+## -------------------------------------------------------------------------------------------
+
+# -------------------------------------------------------------------------------------------
+# .pkit Settings:
 # -------------------------------------------------------------------------------------------
 
+# 1. Directory for log files
+# - relative to project root
+# - if null print-only (TODO)
+# - can be set with `--log_dir` flag when running `pkit init`
+log_dir: null
 
-# Logging
-log_folder: null    # Directory for log files (relative to project root) if null print-only (TODO: NotImplemented)
+# 2. Package containing "constants_module"
+# - ConfigHandler attempts to auto-detect if null and
+#   not provided through 'package_name' arg
+# - can be set with `--package` flag when running `pkit init`
+constants_package_name: null
 
+
+# -------------------------------------------------------------------------------------------
+# .pkit Conventions:
+#
+# These settings are the project-kit conventions determining names of files and folders, as
+# well as environmental variables. It is recommended that you do not edit this section unless
+# these conventions leads to a conflict due to integration into an existing project, or use
+# with a different tool.
+# -------------------------------------------------------------------------------------------
 
 # Project Path and Directory Configuration
 config_folder: "config"              # Directory containing your YAML configuration files
@@ -19,7 +54,6 @@ args_config_folder: "args"           # Directory containing your YAML arg-config
 config_filename: "config.yaml"       # Main configuration file name within config_folder
 jobs_folder: "jobs"                  # Directory for job runner scripts (if using job runner)
 constants_module_name: "constants"   # Name of Python module containing project constants
-
 
 # Environment Configuration
 project_kit_env_var_name: "PROJECT_KIT.ENV_NAME"    # Environment variable name for environment-specific configs
