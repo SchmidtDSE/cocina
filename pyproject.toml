@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "project_kit"
 version = "0.0.1"
 readme = "README.md"
-dependencies = ["pyyaml"]
+dependencies = ["pyyaml", "click>=8.2.1,<9"]
 
 [project.scripts]
 pkit = "project_kit:cli.cli"

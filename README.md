@@ -54,6 +54,7 @@ pixi run pkit init (--log_dir <relative-path-to-log-dir>) \
 
 
 ## Requirements
+
 Requirements are managed through a [Pixi](https://pixi.sh/latest) "project" (similar to a conda environment). After pixi is installed use `pixi run <cmd>` to ensure the correct project is being used. For example,
 
 ```bash
