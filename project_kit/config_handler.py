@@ -24,7 +24,7 @@ from project_kit import utils
 
 
 #
-# UTILS
+# HELPERS
 #
 def pkit_path(
         path: str,
@@ -331,14 +331,11 @@ class ConfigHandler:
             if isinstance(arg, dict):
                 self.config.update(arg)
             elif isinstance(arg, str):
-                # if str starts with / let it be the full path
-                # else assume starts from project_root
-                # TODO: MAKE SURE THIS LOGIC IS RIGHT under /config/?
-                # TODO: READ_YAML check for ext?
-                if arg.startswith('/'):
-                    path = arg
-                else:
-                    path = f'{self.project_root}/{arg}'
+                path = pkit_path(
+                    arg,
+                    self.project_root,
+                    ext_regex=c.YAML_EXT_REGX,
+                    ext='.yaml')
                 yaml_config = utils.read_yaml(path, safe=True)
                 self.config.update(yaml_config)
             else:
