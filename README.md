@@ -3,9 +3,9 @@
 Project Kit (PKIT) is a collection of tools for building out python projects. PKIT contains:
 
 1. [ConfigHandler](#confighandler): used for managing constants and configuration for python projects
-2. [ConfigArgs](#configargs): used to manage job run configurations: allows the job specific args and kwargs for running a job to be handled through config files.
-3. [CLI](#cli): a cli that makes it easy to launch and run jobs using yaml files for both project configuration and run configuration.
-4. [Utilities](#utils) such a [Timer](#timer), a [Printer/Logger](#printer), as well as a number of python helpers to read and write files, join strings, search directories etc.
+2. [ConfigArgs](#configargs): used to manage job run configurations, allowing the job specific args and kwargs for running a job to be handled through configuration files
+3. [CLI](#cli): a cli that makes it easy to launch and run jobs using these configuration files
+4. [Utilities](#utils) such a [Timer](#timer), a [Printer/Logger](#printer), as well as a number of python helpers to read and write files, join strings, search directories etc
 
 ## Table of Contents
 
@@ -59,41 +59,42 @@ pixi add --pypi $(cat pypi_package_names.txt)
 
 # Quick Start
 
-Assume we have the following in our config directory:
+As a quick-start we'll just quickly walk through an example. Assume we have the following in our config directory:
 
 ```bash
 ├── config
-│	├── args               # This directory contains argument (args and kwargs) for specific scripts
-│	│	├── job_1.yaml
-│	│	├── job_2.yaml
-│	│	└── job_group_1
-│	│	    └── job_a1.yaml
-│	├── config.yaml         # This file contains constants/configurations to be used throughout ones package
-│	├── dev.yaml		    # Updates the values (or adds new values to) config.yaml for a "dev" env
-│	├── prod.yaml		    # Updates the values (or adds new values to) config.yaml for a "prod" env
-│	└── some_silly_env.yaml # ... (you can name your envs anything you like dev/prod were just examples)
+│ ├── args               # This directory contains argument (args and kwargs) for specific scripts
+│ │ ├── job_1.yaml
+│ │ ├── job_2.yaml
+│ │ └── job_group_1
+│ │     └── job_a1.yaml
+│ ├── config.yaml         # This file contains constants/configurations to be used throughout ones package
+│ ├── dev.yaml        # Updates the values (or adds new values to) config.yaml for a "dev" env
+│ ├── prod.yaml       # Updates the values (or adds new values to) config.yaml for a "prod" env
+│ └── some_silly_env.yaml # ... (you can name your envs anything you like dev/prod were just examples)
 ```
 
 ```python
 from project_kit.config_handler import ConfigHandler
 
-# load configuration (also includes constants defined in a `package_name.constants` module (more details below)
+# Here `ConfigHandler()` loads the configuration in config.yaml, and then (if an env has been set) updates it with the correct env-conf (ie prod.yaml). Note, it may also include constants defined in a `package_name.constants` module (more details below).
+
 ch = ConfigHandler()
 database_url = ch.get('database_url', 'sqlite:///default.db')
 api_key = ch.api_key  # Raises KeyError if not found
 
 def some_function(value: str = ch.CONFIGURED_VALUE):
-	pass
+  pass
 ```
 
 And some "job" modules:
 
 ```bash
 ├── jobs
-│	├── job_1.py
-│	├── job_2.py
-│	└── job_group_1
-│	    └── job_a1.py
+│ ├── job_1.py
+│ ├── job_2.py
+│ └── job_group_1
+│     └── job_a1.py
 ```
 
 Here `config/args/job_group_1/job_a1.yaml` looks like
@@ -101,40 +102,42 @@ Here `config/args/job_group_1/job_a1.yaml` looks like
 ```yaml
 # config/args/job_group_1/job_a1.yaml
 step_1:
-	args:
-		- value1
-		- value2
-	kwargs:
-		kwarg1: key_value1
-		kwarg2: key_value2
+  args:
+    - value1
+    - value2
+  kwargs:
+    kwarg1: key_value1
+    kwarg2: key_value2
 
 step_2:
-	kwarg1: key_value1
-	kwarg2: key_value2
-	kwarg3: key_value3
+  kwarg1: key_value1
+  kwarg2: key_value2
+  kwarg3: key_value3
 
 step_3:
-	- value1
-	- value2
-	- value3
+  - value1
+  - value2
+  - value3
 ```
 
 ```python
 # jobs.job_group_1.job_a1
 
+...
+
 def step_1(arg1, arg2, kwarg1=None, kwarg2=None):
-	return dict(...)
+  return dict(...)
 
 def step_2(result_1, kwarg1=None, kwarg2=None, kwarg3=None):
-	pass
+  pass
 
 def step_3(arg1, arg2, arg3):
-	pass
+  pass
 
 def run(config_args):
-	result_1 = step_1(*config_args.step_1.args, **config_args.step_1.kwargs)
-	step_2(result_1, *config_args.step_2.args, **config_args.step_2.kwargs)
-	step_3(*config_args.step_3.args, **config_args.step_3.kwargs)
+  result_1 = step_1(*config_args.step_1.args, **config_args.step_1.kwargs)
+  step_2(result_1, *config_args.step_2.args, **config_args.step_2.kwargs)
+  step_3(*config_args.step_3.args, **config_args.step_3.kwargs)
 ```
 
 Now you can use the [ConfigArgs](#configargs) class to run these methods.
@@ -162,16 +165,16 @@ The run method also can take a [`Printer`](#printer) to make it easy to print fo
 ...
 
 def run(config_args, printer=None):
-	if printer is None:
-		printer = Printer()
-		printer.start()
-	printer.message('step_1')
-	result_1 = step_1(*config_args.step_1.args, **config_args.step_1.kwargs)
-	printer.message('step_1.results', **result_1)
-	printer.message('step_2')
-	step_2(result_1, *config_args.step_2.args, **config_args.step_2.kwargs)
-	printer.message('step_3')
-	step_3(*config_args.step_3.args, **config_args.step_3.kwargs)
+  if printer is None:
+    printer = Printer()
+    printer.start()
+  printer.message('step_1')
+  result_1 = step_1(*config_args.step_1.args, **config_args.step_1.kwargs)
+  printer.message('step_1.results', **result_1)
+  printer.message('step_2')
+  step_2(result_1, *config_args.step_2.args, **config_args.step_2.kwargs)
+  printer.message('step_3')
+  step_3(*config_args.step_3.args, **config_args.step_3.kwargs)
 ```
 
 ---
@@ -223,18 +226,10 @@ Project Kit provides a flexible configuration system that supports both general 
 
 The [`ConfigHandler`](./project_kit/config_handler.py) class provides unified configuration management using YAML files, constants, and environment variables.
 
-**Basic Usage:**
-```python
-from project_kit.config_handler import ConfigHandler
+(more docs to come: see Quick Start for examples)
 
-# Initialize with automatic project root detection
-ch = ConfigHandler()
-
-# Access configuration values
-db_url = ch.get('database_url', 'default_value')  # With fallback
-api_key = ch['api_key']                          # Direct access (raises KeyError if missing)
-timeout = ch.api_timeout                         # Attribute access
-```
+TODO: more detailed explanation
+TODO: explain the role of `constants.py`
 
 ## ConfigArgs
 
@@ -269,15 +264,15 @@ env:
 # The rest of the keys lead to properties on `ca = ConfigArgs()` instances:
 #
 # For instance extract_data yaml =>
-# 	- ca.extract_data.args (list) and
-# 	- ca.extract_data.kwargs (dict)
+#   - ca.extract_data.args (list) and
+#   - ca.extract_data.kwargs (dict)
 #
 # Parsing rules:
-# 	- If value is dict:
+#   - If value is dict:
 #     - If keys are exclusively 'args' or 'kwargs': extract args/kwargs from value
 #     - Otherwise: args = [] and kwargs = value
-# 	- If value is list/tuple: args = value, kwargs = {}
-# 	- Otherwise: args = [value], kwargs = {}
+#   - If value is list/tuple: args = value, kwargs = {}
+#   - Otherwise: args = [value], kwargs = {}
 # -----------------------------------------------------------------------------
 extract_data:
   args: ["source_table"]
