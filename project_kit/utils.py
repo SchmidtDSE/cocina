@@ -14,6 +14,7 @@ License: CC-BY-4.0
 import sys
 import importlib.util
 import re
+import inspect
 import yaml
 import json
 from datetime import datetime, timedelta
@@ -35,37 +36,6 @@ TIME_STAMP_FORMAT: str = '%Y%m%d-%H%M%S'
 #
 # IO
 #
-def dir_search(
-        *search_names: str,
-        max_depth: int = MAX_DIR_SEARCH_DEPTH,
-        default: Optional[str] = None) -> str:
-    """Search parent directories for files matching search names.
-
-    Args:
-        *search_names: File names to search for
-        max_depth: Maximum directory depth to search (default: MAX_DIR_SEARCH_DEPTH)
-        default: Default return value if files not found (default: None)
-
-    Returns:
-        Path to directory containing matching files
-
-    Raises:
-        ValueError: If files not found and no default provided
-    """
-    cwd = Path.cwd()
-    directory = cwd
-    for _ in range(max_depth):
-        file_names = [str(n.name) for n in directory.iterdir()]
-        if bool(set(file_names) & set(search_names)):
-            return str(directory)
-        else:
-            directory = directory.parent
-    if default:
-        return default
-    else:
-        raise ValueError(f'{search_names} file(s) not found at depth {max_depth}')
-
-
 def read_yaml(path: str, *key_path: str, safe: bool = False) -> Any:
     """Read and optionally extract part of a YAML file.
 
@@ -139,6 +109,18 @@ def safe_copy_yaml(
             file.write(processed_str)
 
 
+def write(dest: str, *lines: str, mode='w', strip=True, **kwargs):
+    """
+    FIX ME: write to file
+    """
+    with open(dest, mode) as file:
+        for line in lines:
+            line = str(line)
+            if strip:
+                line = line.strip()
+            file.write('\n{line}')
+
+
 def import_module_from_path(path: str) -> ModuleType:
     """Import a module from file path.
 
@@ -154,6 +136,57 @@ def import_module_from_path(path: str) -> ModuleType:
     spec.loader.exec_module(module)
     return module
 
+
+#
+# INSPECTION
+#
+def dir_search(
+        *search_names: str,
+        max_depth: int = MAX_DIR_SEARCH_DEPTH,
+        default: Optional[str] = None) -> str:
+    """Search parent directories for files matching search names.
+
+    Args:
+        *search_names: File names to search for
+        max_depth: Maximum directory depth to search (default: MAX_DIR_SEARCH_DEPTH)
+        default: Default return value if files not found (default: None)
+
+    Returns:
+        Path to directory containing matching files
+
+    Raises:
+        ValueError: If files not found and no default provided
+    """
+    cwd = Path.cwd()
+    directory = cwd
+    for _ in range(max_depth):
+        file_names = [str(n.name) for n in directory.iterdir()]
+        if bool(set(file_names) & set(search_names)):
+            return str(directory)
+        else:
+            directory = directory.parent
+    if default:
+        return default
+    else:
+        raise ValueError(f'{search_names} file(s) not found at depth {max_depth}')
+
+
+def inspect_tree(max_depth=4, sep='.', as_list=False):
+    """
+    FIX ME:
+    """
+    frames = inspect.stack()[1:max_depth+1]
+    names = []
+    for frame in frames:
+        name = frame.function
+        if name[0] == '<':
+            break
+        else:
+            names.append(name)
+    if as_list:
+        return names
+    else:
+        return safe_join(*names, sep=sep)
 
 #
 # CORE
