@@ -17,6 +17,28 @@ def cli(ctx):
     ctx.obj = {}
 
 
+@cli.command(name='init', help='initialize project with .pkit file')
+@click.option('--log_dir', '-l',
+    type=str,
+    required=False,
+    help='Log Directory')
+@click.option('--package', '-p',
+    type=str,
+    required=False,
+    help='Main Package Name')
+@click.option('--force', '-f',
+    type=bool,
+    required=False,
+    is_flag=True)
+@click.pass_context
+def init(
+        ctx,
+        log_dir: Optional[str] = None,
+        package: Optional[str] = None,
+        force: bool = False):
+    print('init:', log_dir, package, force)
+
+
 @cli.command(name='job', help='job help text')
 @click.argument('job', type=str)
 @click.option('--env', '-e', type=str, required=False, help='Environment to run job in')
@@ -133,4 +155,5 @@ def job(
 #
 # MAIN
 #
+cli.add_command(init)
 cli.add_command(job)
