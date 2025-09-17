@@ -474,9 +474,9 @@ class ConfigHandler:
         else:
             package_name = package_locator
         constants_module = None
-        if package_locator:
+        if package_name:
+            dot_path = f'{package_name}.{self.pkit.constants_module_name}'
             try:
-                dot_path = f'{package_name}.{self.pkit.constants_module_name}'
                 constants_module = importlib.import_module(dot_path)
             except ImportError as e:
                 pass
