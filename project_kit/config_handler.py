@@ -579,36 +579,16 @@ class ConfigArgs:
             self.config_handler = config_handler
         else:
             self.config_handler = ConfigHandler()
-        # load args-config yaml
-        args_config_path = pkit_path(
-            config_path,
-            self.config_handler.project_root,
-            self.config_handler.pkit.config_folder,
-            self.config_handler.pkit.args_config_folder,
-            ext='.yaml',
-            ext_regex=c.YAML_EXT_REGX)
-        # load args (pop special values)
-        args_config = utils.read_yaml(args_config_path)
-        job = args_config.pop('job', None)
-        config = args_config.pop('config', {})
-        env = args_config.pop('env', {})
-        # get path to job
+        job, args_config, config = self._args_data(config_path, user_config)
+        self.config_handler.update(config)
+        self.args_config = self.config_handler.process_values(args_config)
+        self.property_names = list(self.args_config.keys())
         self.job_path = pkit_path(
             re.sub(c.YAML_EXT_REGX, '', job or config_path),
             self.config_handler.project_root,
             self.config_handler.pkit.jobs_folder,
             ext='.py',
             ext_regex=c.PY_EXT_REGX)
-        # update ch with config/env
-        if self.config_handler.environment_name:
-            env = env.pop(self.config_handler.environment_name, {})
-            config.update(env)
-        if user_config:
-            config.update(user_config)
-        self.config_handler.update(config)
-        # replace values set to config_handler-keys
-        self.args_config = self.config_handler.process_values(args_config)
-        self.property_names = list(self.args_config.keys())
         self._set_arg_kwargs()
 
     def import_job_module(self) -> Any:
@@ -635,7 +615,37 @@ class ConfigArgs:
     #
     # INTERNAL
     #
+    def _args_data(self, config_path: str, user_config: Union[dict, None]) -> tuple[dict, Union[str, None], dict]:
+        """
+        FIX  ME
+        """
+        args_config_path = pkit_path(
+            config_path,
+            self.config_handler.project_root,
+            self.config_handler.pkit.config_folder,
+            self.config_handler.pkit.args_config_folder,
+            ext='.yaml',
+            ext_regex=c.YAML_EXT_REGX)
+        try:
+            args_config = utils.read_yaml(args_config_path)
+            # pop special values
+            job = args_config.pop('job', None)
+            config = args_config.pop('config', {})
+            env = args_config.pop('env', {})
+            # update ch with config/env
+            if self.config_handler.environment_name:
+                env = env.pop(self.config_handler.environment_name, {})
+                config.update(env)
+            if user_config:
+                config.update(user_config)
+        except Exception:
+            job, args_config, config = None, {}, {}
+        return job, args_config, config
+
     def _set_arg_kwargs(self) -> None:
-        """Set ArgsKwargs attributes for each property in args_config."""
+        """
+        FIX ME: Set ArgsKwargs attributes for each property in args_config.
+        """
         for k, v in self.args_config.items():
             setattr(self, k, ArgsKwargs.init_from_value(v))
+
