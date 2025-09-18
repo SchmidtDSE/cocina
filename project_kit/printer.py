@@ -14,6 +14,7 @@ License: CC-BY-4.0
 from pathlib import Path
 from typing import Any, List, Optional, Tuple, Union
 from project_kit import utils
+from project_kit import constants as c
 
 #
 # CONSTANTS
@@ -31,11 +32,12 @@ class Printer(object):
     """
 
     def __init__(self,
-                 header: Optional[Union[str, List[str]]] = None,
                  log_dir: Optional[str] = None,
                  log_name_part: Optional[str] = None,
                  timer: Optional[utils.Timer] = None,
+                 header: Optional[Union[str, List[str]]] = None,
                  div_len: int = 100,
+                 icons: bool = True,
                  silent: bool = False) -> None:
         """Initialize Printer with configuration options.
 
@@ -45,6 +47,7 @@ class Printer(object):
             log_name_part: Part of the log filename to use
             timer: Timer instance for timestamps (creates new if None)
             div_len: Length of divider lines (default: 100)
+            FIX ME: icons: bool = True,
             silent: Whether to suppress console output (default: False)
 
         Raises:
@@ -55,17 +58,12 @@ class Printer(object):
             >>> printer = Printer(['Module', 'SubModule'], silent=True)
         """
         self.log_dir = log_dir
+        self.log_name_part = log_name_part
         self.timer = timer or utils.Timer()
         self.div_len = div_len
+        self.icons = icons
         self.silent = silent
-        self.log_name_part = log_name_part
-        print('-----', self.log_name_part)
-        if isinstance(header, str):
-            self.header = header
-        elif isinstance(header, list):
-            self.header = utils.safe_join(*header, sep='.')
-        else:
-            raise ValueError('header must be str or list[str]', header)
+        self.set_header(header)
 
     def start(self,
               message: str = 'start',
@@ -94,11 +92,6 @@ class Printer(object):
                 self.timer.timestamp(),
                 self.log_name_part,
                 ext=LOG_FILE_EXT)
-            print()
-            print(self.log_name_part, '<<<')
-            print(self.log_path)
-            print()
-            print()
             if Path(self.log_path).is_file():
                 err = (
                     'log already exists at log_path'
@@ -109,7 +102,7 @@ class Printer(object):
                 Path(self.log_path).parent.mkdir(parents=True, exist_ok=True)
         else:
             self.log_path = None
-        self.message(message, div=div, vspace=vspace)
+        self.message(message, div=div, vspace=vspace, icon=c.ICON_START)
 
     def stop(self,
              message: str = 'complete',
@@ -140,10 +133,18 @@ class Printer(object):
             message,
             div=div,
             vspace=vspace,
+            icon=c.ICON_SUCCESS,
             **info)
         return time_stop
 
-    def message(self, msg: str, *subheader: str, div: Optional[Union[str, Tuple[str, str]]] = None, vspace: Union[bool, int] = False, **kwargs: Any) -> None:
+    def message(self,
+            msg: str,
+            *subheader: str,
+            div: Optional[Union[str, Tuple[str, str]]] = None,
+            vspace: Union[bool, int] = False,
+            icon: Optional[str] = None,
+            error: Union[bool, str, Exception] = False,
+            **kwargs: Any) -> None:
         """Print a formatted message with optional dividers and spacing.
 
         Args:
@@ -151,6 +152,8 @@ class Printer(object):
             *subheader: Additional header components to append
             div: Divider characters as string or tuple (optional)
             vspace: Vertical spacing as boolean or number of lines
+            FIX ME: icon: Optional[str] = None,
+            FIX ME: error: Union[bool, str, Exception] = False,
             **kwargs: Additional key-value pairs to append to message
 
         Usage:
@@ -158,23 +161,59 @@ class Printer(object):
             >>> printer.message('Error', 'processing', div='*', vspace=2)
             >>> printer.message('Info', count=42, status='ok')
         """
-        if vspace:
-            lines = vspace if isinstance(vspace, int) else 1
-            self._print('\n' * lines)
+        self.vspace(vspace)
         if div:
             if isinstance(div, str):
                 div1, div2 = div, div
             else:
                 div1, div2 = div
-            self._print(div1 * self.div_len)
+            self.line(div1)
+        if error:
+            if isinstance(error, (str, Exception)):
+                msg = f'{msg}: {error}'
+            icon = c.ICON_FAILED
+        if icon and self.icons:
+            msg = f'{icon} {msg}'
         self._print(self._format_msg(msg, subheader, kwargs))
         if div:
-            self._print(div2 * self.div_len)
+            self.line(div2)
+
+    def set_header(self, header: Optional[str] = None):
+        """ set header for messages:
+        FIX ME:
+
+        self.header = "job header"
+        self.message("my message") ~> job header [timestamps]: my message
 
 
-#
-# INTERNAL
-#
+        self.header = ["job", "header"]
+        self.message("my message") ~> job.header [timestamps]: my message
+        """
+        if header is None:
+            header = c.PKIT_CLI_DEFAULT_HEADER
+        if isinstance(header, str):
+            self.header = header
+        elif isinstance(header, list):
+            self.header = utils.safe_join(*header, sep='.')
+        else:
+            raise ValueError('header must be str or list[str]', header)
+
+    def vspace(self, vspace: Union[bool, int] = False) -> None:
+        """
+        FIX ME
+        """
+        if vspace:
+            self._print('\n' * int(vspace))
+
+    def line(self, marker: str, length: Optional[int] = None):
+        """
+        FIX ME
+        """
+        self._print(marker * (length or self.div_len))
+
+    #
+    # INTERNAL
+    #
     def _format_msg(self, message: str, subheader: Tuple[str, ...], key_values: Optional[dict] = None) -> str:
         """Format message with header, timestamp, and key-value pairs.
 
