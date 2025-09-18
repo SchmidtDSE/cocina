@@ -1,11 +1,14 @@
 # Project Kit
 
-Project Kit (PKIT) is a collection of tools for building out python projects. PKIT contains:
+Project Kit (PKIT) is a collection of tools for building out python projects. Its main functionality is to manage constants, configuration and arguments, and to simplify/clean-up writing scripts (jobs). These tasks are managed by:
 
-1. [ConfigHandler](#confighandler): used for managing constants and configuration for python projects
-2. [ConfigArgs](#configargs): used to manage job run configurations, allowing the job specific args and kwargs for running a job to be handled through configuration files
-3. [CLI](#cli): a cli that makes it easy to launch and run jobs using these configuration files
-4. [Utilities](#utils) such a [Timer](#timer), a [Printer/Logger](#printer), as well as a number of python helpers to read and write files, join strings, search directories etc
+1. [ConfigHandler](#confighandler): a `class` used for managing constants and configuration
+2. [ConfigArgs](#configargs): a `class` used to manage arguments/job-run-configurations
+3. [CLI](#cli): a cli for launching and running jobs using these configuration files
+
+(TODO: CONFIG VS CONSTANTS VS ARGUMENTS)
+
+PKit also includes a serveral other useful [tools](#tools) such a [Timer](#timer), a [Printer (Logger)](#printer), as well as a number of python helpers to read and write files, join strings, search directories etc
 
 ## Table of Contents
 
@@ -16,7 +19,7 @@ Project Kit (PKIT) is a collection of tools for building out python projects. PK
   - [Configuration Structure](#configuration-structure)
   - [ConfigHandler](#confighandler)
   - [ConfigArgs](#configargs)
-- [Utilities](#utils)
+- [Tools](#tools)
   - [Printer](#printer)
   - [Timer](#timer)
 - [Style Guide](#style-guide)
@@ -328,7 +331,7 @@ load_data:
 
 ---
 
-# Utilities
+# Tools
 
 ## Printer
 
