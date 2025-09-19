@@ -11,10 +11,12 @@ License: CC-BY-4.0
 #
 # IMPORTS
 #
+import os
 from pathlib import Path
 from typing import Any, List, Optional, Tuple, Union
 from project_kit import utils
 from project_kit import constants as c
+
 
 #
 # CONSTANTS
@@ -34,6 +36,7 @@ class Printer(object):
     def __init__(self,
                  log_dir: Optional[str] = None,
                  log_name_part: Optional[str] = None,
+                 log_path: Optional[str] = None,
                  timer: Optional[utils.Timer] = None,
                  header: Optional[Union[str, List[str]]] = None,
                  div_len: int = 100,
@@ -59,6 +62,7 @@ class Printer(object):
         """
         self.log_dir = log_dir
         self.log_name_part = log_name_part
+        self.log_path = log_path
         self.timer = timer or utils.Timer()
         self.div_len = div_len
         self.icons = icons
@@ -86,28 +90,14 @@ class Printer(object):
             >>> printer.start('Init', div='*', vspace=1)
         """
         self.timer.start()
-        if self.log_dir:
-            self.log_path = utils.safe_join(
-                self.log_dir,
-                self.timer.timestamp(),
-                self.log_name_part,
-                ext=LOG_FILE_EXT)
-            if Path(self.log_path).is_file():
-                err = (
-                    'log already exists at log_path'
-                    f'({self.log_path})'
-                )
-                raise ValueError(err)
-            else:
-                Path(self.log_path).parent.mkdir(parents=True, exist_ok=True)
-        else:
-            self.log_path = None
+        self._process_log_path()
         self.message(message, div=div, vspace=vspace, icon=c.ICON_START)
 
     def stop(self,
-             message: str = 'complete',
-             div: Union[str, Tuple[str, str]] = ('-','='),
-             vspace: int = 1,
+            message: str = 'complete',
+            div: Union[str, Tuple[str, str]] = ('-','='),
+            vspace: int = 1,
+            error: Union[bool, str, Exception] = False,
              **kwargs: Any) -> str:
         """Stop the printer session and return timing information.
 
@@ -115,6 +105,7 @@ class Printer(object):
             message: Completion message to display (default: 'complete')
             div: Divider characters as string or tuple (default: ('-','='))
             vspace: Vertical spacing before message (default: 1)
+            FIX ME: error: Union[bool, str, Exception] = False,
             **kwargs: Additional keyword arguments passed to message formatting
 
         Returns:
@@ -126,15 +117,16 @@ class Printer(object):
         """
         time_stop = self.timer.stop()
         duration = self.timer.delta()
-        info = dict(duration=duration)
+        kwargs['duration'] = duration
         if self.log_path:
-            info['log'] = self.log_path
+            kwargs['log'] = self.log_path
         self.message(
             message,
             div=div,
             vspace=vspace,
             icon=c.ICON_SUCCESS,
-            **info)
+            error=error,
+            **kwargs)
         return time_stop
 
     def message(self,
@@ -169,7 +161,7 @@ class Printer(object):
                 div1, div2 = div
             self.line(div1)
         if error:
-            if isinstance(error, (str, Exception)):
+            if error is not False:
                 msg = f'{msg}: {error}'
             icon = c.ICON_FAILED
         if icon and self.icons:
@@ -205,7 +197,7 @@ class Printer(object):
         if vspace:
             self._print('\n' * int(vspace))
 
-    def line(self, marker: str, length: Optional[int] = None):
+    def line(self, marker: str = '-', length: Optional[int] = None):
         """
         FIX ME
         """
@@ -214,6 +206,40 @@ class Printer(object):
     #
     # INTERNAL
     #
+    def _process_log_path(self) -> None:
+        """
+        FIX ME
+        """
+        _append = False
+        if not self.log_path:
+            env_log_path = os.environ.get(c.project_kit_log_path_key)
+            if env_log_path:
+                self.log_path = env_log_path
+                _append = True
+        if self.log_path:
+            _p =  Path(self.log_path)
+            self.log_name = _p.name
+            self.log_name_part = _p.stem.split('.')[-1]
+            self.log_dir = str(_p.parent)
+        elif self.log_dir:
+            self.log_name = utils.safe_join(self.timer.timestamp(), self.log_name_part, ext=LOG_FILE_EXT, sep='.')
+            self.log_path = utils.safe_join(self.log_dir, self.log_name)
+        else:
+            self.log_name = None
+            self.log_path = None
+            self.log_name_part = None
+        if self.log_path:
+            if (not _append) and Path(self.log_path).is_file():
+                err = (
+                    'log already exists at log_path'
+                    f'({self.log_path})'
+                )
+                raise ValueError(err)
+            else:
+                os.environ[c.project_kit_log_path_key] = self.log_path
+                Path(self.log_path).parent.mkdir(parents=True, exist_ok=True)
+
+
     def _format_msg(self, message: str, subheader: Tuple[str, ...], key_values: Optional[dict] = None) -> str:
         """Format message with header, timestamp, and key-value pairs.
 
