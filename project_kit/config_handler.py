@@ -124,7 +124,6 @@ class PKitConfig:
     config_filename: str
     jobs_folder: str
     constants_module_name: str
-    project_kit_env_var_name: str
     default_env_key: str
     log_dir: Optional[str] = None
     constants_package_name: Optional[str] = None
@@ -504,7 +503,7 @@ class ConfigHandler:
             ext='.yaml')
         config = utils.read_yaml(config_path, safe=True)
         default_env = config.pop(self.pkit.default_env_key, None)
-        environment_name = os.environ.get(self.pkit.project_kit_env_var_name, default_env)
+        environment_name = os.environ.get(c.project_kit_env_key, default_env)
         if environment_name:
             env_path = pkit_path(
                 self.project_root,
