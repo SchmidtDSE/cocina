@@ -56,5 +56,4 @@ jobs_folder: "jobs"                  # Directory for job runner scripts (if usin
 constants_module_name: "constants"   # Name of Python module containing project constants
 
 # Environment Configuration
-project_kit_env_var_name: "PROJECT_KIT.ENV_NAME"    # Environment variable name for environment-specific configs
-default_env_key: "DEFAULT_ENV"                      # Key in main config file that specifies default environment
+default_env_key: "DEFAULT_ENV"                         # Key in main config file that specifies default environment

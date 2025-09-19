@@ -7,6 +7,7 @@ This module contains constant values used throughout the Project Kit package.
 License: CC-BY-4.0
 
 """
+print('hsafd')
 #
 # CONSTANTS
 #
@@ -26,3 +27,10 @@ YAML_EXT_REGX = r'\.(yaml|yml)$'
 ICON_START = "🚀"
 ICON_FAILED = "❌"
 ICON_SUCCESS = "✅"
+
+# environment variables
+# - env-key to store "env-name" to manage environment-specific configs/args
+project_kit_env_key = "PROJECT_KIT.ENV_KEY"
+# - env-key to store path to current log file
+project_kit_log_path_key = "PROJECT_KIT.LOG_PATH_KEY"
+
