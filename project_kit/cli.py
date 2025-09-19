@@ -3,6 +3,7 @@
 License:
     BSD, see LICENSE.md
 """
+import os, sys
 from typing import Optional
 from pathlib import Path
 from pprint import pprint
@@ -83,13 +84,13 @@ def job(
     jobs, user_config = _process_jobs_and_user_config(jobs, dry_run)
 
     # 2. pkit-setup
-    pkit, printer = _pkit_printer()
+    pkit, printer = _pkit_printer(*jobs)
     printer.start(vspace=False)
 
     # 3. set environment (if provided)
     if env:
         printer.message(f"Setting environment: {env}")
-        os.environ[pkit.project_kit_env_var_name] = env
+        os.environ[c.project_kit_env_key] = env
 
     # 4. run jobs
     for job in jobs:
@@ -104,7 +105,7 @@ def job(
 #
 def execute_job(job: str, user_config: Optional[dict] = None, printer: Optional[Printer] = None) -> None:
     if printer is None:
-        pkit, printer = _pkit_printer()
+        pkit, printer = _pkit_printer(job)
         printer.start()
     printer.set_header(job)
     try:
@@ -124,17 +125,18 @@ def execute_job(job: str, user_config: Optional[dict] = None, printer: Optional[
         printer.stop(f"Failed to import job module", error=e)
         sys.exit(1)
     except AttributeError as e:
-        printer.stop(f"Job module missing 'run' function", error=e)
+        printer.stop(f"Job module missing 'run' xor 'main' function", error=e)
         sys.exit(1)
     except Exception as e:
         printer.stop(f"Job execution failed", error=e)
-        sys.exit(1)
+        raise e
 
 
 #
 # INTERNAL
 #
 def _pkit_printer(
+        *name_parts: str,
         pkit: Optional[PKitConfig] = None,
         header: str = c.PKIT_CLI_DEFAULT_HEADER) -> PKitConfig:
     """
@@ -142,7 +144,9 @@ def _pkit_printer(
     """
     if pkit is None:
         pkit = PKitConfig.init_for_project()
-    printer = Printer(log_dir=pkit.log_dir, header=header)
+    if name_parts:
+        name_parts = utils.safe_join(*name_parts, sep='-')
+    printer = Printer(log_dir=pkit.log_dir, header=header, log_name_part=name_parts)
     return pkit, printer
 
 
