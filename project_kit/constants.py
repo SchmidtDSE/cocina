@@ -7,7 +7,6 @@ This module contains constant values used throughout the Project Kit package.
 License: CC-BY-4.0
 
 """
-print('hsafd')
 #
 # CONSTANTS
 #

@@ -46,7 +46,7 @@ def init(
         package: Optional[str] = c.PKIT_NOT_FOUND,
         force: bool = False):
     src_pkit_path = Path(__file__).parent.parent / 'dot_pkit'
-    dest_pkit_path = PKitConfig.file_path()
+    dest_pkit_path = f'{Path.cwd()}/.pkit'
     utils.safe_copy_yaml(
         src_pkit_path,
         dest_pkit_path,
