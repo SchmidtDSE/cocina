@@ -4,7 +4,7 @@ License:
     BSD, see LICENSE.md
 """
 import os, sys
-from typing import Optional
+from typing import Any, Dict, List, Optional, Tuple, Union
 from pathlib import Path
 from pprint import pprint
 import click
@@ -138,9 +138,20 @@ def execute_job(job: str, user_config: Optional[dict] = None, printer: Optional[
 def _pkit_printer(
         *name_parts: str,
         pkit: Optional[PKitConfig] = None,
-        header: str = c.PKIT_CLI_DEFAULT_HEADER) -> PKitConfig:
-    """
-    FIX ME
+        header: str = c.PKIT_CLI_DEFAULT_HEADER) -> Tuple[PKitConfig, Printer]:
+    """Initialize PKitConfig and Printer instances for CLI operations.
+
+    Args:
+        *name_parts: Variable length string arguments to construct log name
+        pkit: Existing PKitConfig instance (creates new if None)
+        header: Header string for printer output
+
+    Returns:
+        Tuple containing PKitConfig and Printer instances
+
+    Usage:
+        >>> pkit, printer = _pkit_printer('job1', 'task1')
+        >>> pkit, printer = _pkit_printer(header='Custom Header')
     """
     if pkit is None:
         pkit = PKitConfig.init_for_project()
@@ -150,9 +161,19 @@ def _pkit_printer(
     return pkit, printer
 
 
-def _process_jobs_and_user_config(jobs, dry_run) -> None:
-    """
-    FIX ME
+def _process_jobs_and_user_config(jobs: List[str], dry_run: bool) -> Tuple[List[str], Dict[str, Any]]:
+    """Process job arguments and user configuration from CLI input.
+
+    Args:
+        jobs: List of job names and key=value configuration pairs
+        dry_run: Whether to enable dry run mode
+
+    Returns:
+        Tuple containing list of job names and processed configuration dict
+
+    Usage:
+        >>> jobs, config = _process_jobs_and_user_config(['job1', 'key=value'], True)
+        >>> jobs, config = _process_jobs_and_user_config(['job1', 'job2'], False)
     """
     _jobs=[]
     _config=dict(DRY_RUN=dry_run)
@@ -166,9 +187,18 @@ def _process_jobs_and_user_config(jobs, dry_run) -> None:
     return _jobs, _config
 
 
-def _process_user_config(config) -> None:
-    """
-    FIX ME
+def _process_user_config(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Process user configuration values with type conversion.
+
+    Args:
+        config: Dictionary of configuration key-value pairs
+
+    Returns:
+        Processed configuration dictionary with converted values
+
+    Usage:
+        >>> result = _process_user_config({'count': '5', 'items': 'a,b,c'})
+        >>> result = _process_user_config({'flag': 'true', 'value': '3.14'})
     """
     _config = dict()
     for k, v in config.items():
@@ -182,9 +212,19 @@ def _process_user_config(config) -> None:
     return _config
 
 
-def _process_value(value) -> None:
-    """
-    FIX ME
+def _process_value(value: str) -> Union[int, float, str]:
+    """Convert string value to appropriate numeric type if possible.
+
+    Args:
+        value: String value to process and convert
+
+    Returns:
+        Converted value as int, float, or original string
+
+    Usage:
+        >>> result = _process_value('42')      # Returns: 42 (int)
+        >>> result = _process_value('3.14')    # Returns: 3.14 (float)
+        >>> result = _process_value('text')    # Returns: 'text' (str)
     """
     try:
         value = float(value)

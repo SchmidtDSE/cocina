@@ -50,7 +50,7 @@ class Printer(object):
             log_name_part: Part of the log filename to use
             timer: Timer instance for timestamps (creates new if None)
             div_len: Length of divider lines (default: 100)
-            FIX ME: icons: bool = True,
+            icons: Whether to display icons in messages (default: True)
             silent: Whether to suppress console output (default: False)
 
         Raises:
@@ -105,7 +105,7 @@ class Printer(object):
             message: Completion message to display (default: 'complete')
             div: Divider characters as string or tuple (default: ('-','='))
             vspace: Vertical spacing before message (default: 1)
-            FIX ME: error: Union[bool, str, Exception] = False,
+            error: Error indicator - False for none, string for custom message, Exception for error object
             **kwargs: Additional keyword arguments passed to message formatting
 
         Returns:
@@ -144,8 +144,8 @@ class Printer(object):
             *subheader: Additional header components to append
             div: Divider characters as string or tuple (optional)
             vspace: Vertical spacing as boolean or number of lines
-            FIX ME: icon: Optional[str] = None,
-            FIX ME: error: Union[bool, str, Exception] = False,
+            icon: Optional icon string to display with message
+            error: Error indicator - False for none, string for custom message, Exception for error object
             **kwargs: Additional key-value pairs to append to message
 
         Usage:
@@ -170,16 +170,17 @@ class Printer(object):
         if div:
             self.line(div2)
 
-    def set_header(self, header: Optional[str] = None):
-        """ set header for messages:
-        FIX ME:
+    def set_header(self, header: Optional[Union[str, List[str]]] = None) -> None:
+        """Set header for messages.
 
-        self.header = "job header"
-        self.message("my message") ~> job header [timestamps]: my message
+        Args:
+            header: String or list of strings for message prefix
 
-
-        self.header = ["job", "header"]
-        self.message("my message") ~> job.header [timestamps]: my message
+        Usage:
+            >>> printer.set_header("job header")
+            >>> printer.message("my message")  # job header [timestamp]: my message
+            >>> printer.set_header(["job", "header"])
+            >>> printer.message("my message")  # job.header [timestamp]: my message
         """
         if header is None:
             header = c.PKIT_CLI_DEFAULT_HEADER
@@ -191,15 +192,30 @@ class Printer(object):
             raise ValueError('header must be str or list[str]', header)
 
     def vspace(self, vspace: Union[bool, int] = False) -> None:
-        """
-        FIX ME
+        """Print vertical spacing (blank lines).
+
+        Args:
+            vspace: Number of blank lines to print, or False for none
+
+        Usage:
+            >>> printer.vspace(2)    # Print 2 blank lines
+            >>> printer.vspace(True) # Print 1 blank line
+            >>> printer.vspace(False) # Print no blank lines
         """
         if vspace:
             self._print('\n' * int(vspace))
 
-    def line(self, marker: str = '-', length: Optional[int] = None):
-        """
-        FIX ME
+    def line(self, marker: str = '-', length: Optional[int] = None) -> None:
+        """Print a horizontal line using repeated marker characters.
+
+        Args:
+            marker: Character to repeat for the line (default: '-')
+            length: Length of line, uses div_len if None
+
+        Usage:
+            >>> printer.line()          # Print line of dashes
+            >>> printer.line('=', 50)   # Print line of equals, 50 chars
+            >>> printer.line('*')       # Print line of asterisks
         """
         self._print(marker * (length or self.div_len))
 
@@ -207,8 +223,13 @@ class Printer(object):
     # INTERNAL
     #
     def _process_log_path(self) -> None:
-        """
-        FIX ME
+        """Process and set up the log file path for output.
+
+        Determines log file path from environment variables or configuration,
+        creates necessary directories, and sets up file logging.
+
+        Usage:
+            Internal method called during initialization to configure logging.
         """
         _append = False
         if not self.log_path:

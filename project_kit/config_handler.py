@@ -642,8 +642,17 @@ class ConfigArgs:
         return job, args_config, config
 
     def _set_arg_kwargs(self) -> None:
-        """
-        FIX ME: Set ArgsKwargs attributes for each property in args_config.
+        """Set ArgsKwargs attributes for each property in args_config.
+
+        Creates dynamic attributes on the instance for each key in args_config,
+        converting values to ArgsKwargs instances for structured access to
+        method arguments and keyword arguments.
+
+        Usage:
+            >>> config_args = ConfigArgs('job1')
+            >>> config_args._set_arg_kwargs()  # Sets attributes from args_config
+            >>> args = config_args.method_name.args
+            >>> kwargs = config_args.method_name.kwargs
         """
         for k, v in self.args_config.items():
             setattr(self, k, ArgsKwargs.init_from_value(v))
