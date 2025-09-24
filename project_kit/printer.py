@@ -179,8 +179,26 @@ class Printer(object):
             vspace: Union[bool, int] = False,
             icon: Optional[str] = None,
             **kwargs: Any) -> None:
-        """
-        FIX ME: convience wrapper for message when there is an error
+        """Convenience wrapper for displaying error messages.
+
+        Displays an error message with optional formatting. If no message is provided,
+        uses the default error message. This method wraps the main message() method
+        with error-specific styling.
+
+        Args:
+            error: Error condition (bool, string, or Exception)
+            msg: Optional error message text
+            div: Optional divider formatting
+            vspace: Vertical spacing (bool or int)
+            icon: Optional icon for the message
+            **kwargs: Additional arguments passed to message()
+
+        Usage:
+            ```python
+            printer = Printer()
+            printer.error(True, "Connection failed")
+            printer.error(ConnectionError("Timeout"), div="=")
+            ```
         """
         if msg is None:
             msg = DEFAULT_ERROR_MSG

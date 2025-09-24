@@ -243,8 +243,32 @@ def keyed_replace_dictionary_values(
         accepted_regex: str =  c.KEY_STR_REGEX,
         clean_path: bool =  True,
         **direct_replacements) -> dict:
-    """
-    FIX ME
+    """Replace dictionary values using keyed markers and direct replacements.
+
+    Recursively processes a dictionary to replace values containing marker patterns
+    with corresponding values from the same dictionary. Also applies direct string
+    replacements and optionally cleans up double slashes in paths.
+
+    Args:
+        value: Dictionary to process for value replacement
+        open_marker: Opening marker pattern (default: '<<')
+        close_marker: Closing marker pattern (default: '>>')
+        accepted_regex: Regex pattern for valid keys (default: c.KEY_STR_REGEX)
+        clean_path: Whether to clean double slashes in paths (default: True)
+        **direct_replacements: Direct key-value string replacements to apply
+
+    Returns:
+        Dictionary with replaced values
+
+    Usage:
+        ```python
+        config = {
+            'host': 'localhost',
+            'url': 'http://<<host>>/api'
+        }
+        result = keyed_replace_dictionary_values(config)
+        # result['url'] becomes 'http://localhost/api'
+        ```
     """
     regex = f'{open_marker}{accepted_regex}{close_marker}'
     value_str = json.dumps(value)

@@ -236,9 +236,12 @@ class ConfigHandler:
         contains project_kit settings and is used to locate the project root and 
         configure how configuration files are loaded.
 
-    FIX ME: explain how `process_values/keyed_replace_dictionary_values` allows for special
-    strings namely <<SOMETHING>> replaces with value of SOMETHING, and [[PKIT:ENV]] is replaced with
-    environment or stripped.
+    Special Value Processing:
+        ConfigHandler supports special string patterns in configuration values:
+        - `<<KEY_NAME>>`: Replaced with the value of KEY_NAME from the configuration
+        - `[[PKIT:ENV]]`: Replaced with the current environment name or stripped if not set
+
+        These patterns enable dynamic configuration values and environment-specific settings.
 
     Usage:
         ```python
@@ -357,9 +360,10 @@ class ConfigHandler:
         Given a configuration dict, replace all values that are strings whose
         and whose value is in config-handler-instance.
 
-        FIX ME: explain `keyed_replace_dictionary_values` namely <<SOMETHING>> 
-        replaces with value of SOMETHING, and [[PKIT:ENV]] is replaced with
-        environment or stripped.
+        This method uses the `keyed_replace_dictionary_values` utility to perform
+        dynamic string replacement with special patterns:
+        - `<<A_KEY_THAT_EXISTS>>`: Replaced with the value of A_KEY_THAT_EXISTS from the configuration
+        - `[[PKIT:ENV]]`: Replaced with the current environment name or stripped if not set
 
         Args:
             config: Configuration dictionary to process
