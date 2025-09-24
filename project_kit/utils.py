@@ -321,6 +321,7 @@ def safe_join(
     result = sep.join(parts)
     if ext:
         ext = re.sub(r'^\.', '', ext)
+        result = re.sub(f'\\.{ext}$', '', result)
         result = f'{result}.{ext}'
     if clean_path:
         result = clean_path_string(result)
