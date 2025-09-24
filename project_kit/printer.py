@@ -22,6 +22,8 @@ from project_kit import constants as c
 # CONSTANTS
 #
 LOG_FILE_EXT: str = 'log'
+DEFAULT_ERROR_MSG: str = 'Error'
+
 
 #
 # PUBLIC
@@ -169,6 +171,26 @@ class Printer(object):
         self._print(self._format_msg(msg, subheader, kwargs))
         if div:
             self.line(div2)
+
+    def error(self,
+            error: Union[bool, str, Exception],
+            msg: Optional[str] = None,
+            div: Optional[Union[str, Tuple[str, str]]] = None,
+            vspace: Union[bool, int] = False,
+            icon: Optional[str] = None,
+            **kwargs: Any) -> None:
+        """
+        FIX ME: convience wrapper for message when there is an error
+        """
+        if msg is None:
+            msg = DEFAULT_ERROR_MSG
+            self.message(
+                msg=message,
+                error=error,
+                div=div,
+                vspace=vspace,
+                icon=icon,
+                **kwargs)
 
     def set_header(self, header: Optional[Union[str, List[str]]] = None) -> None:
         """Set header for messages.
