@@ -16,16 +16,21 @@ PKIT_CONFIG_FILENAME: str = '.pkit'
 PKIT_NOT_FOUND: str = '__PKIT_OBJECT_NOT_FOUND'
 
 # pkit:cli
-PKIT_CLI_DEFAULT_HEADER = 'pkit_job'
+PKIT_CLI_DEFAULT_HEADER: str = 'pkit_job'
 
-# filenames/paths/etc
+# REGEX
 PY_EXT_REGX: str = r'\.py$'
-YAML_EXT_REGX = r'\.(yaml|yml)$'
+YAML_EXT_REGX: str = r'\.(yaml|yml)$'
+KEY_STR_REGEX: str = r'[a-zA-Z][a-zA-Z0-9_-]*'
 
 # icons
 ICON_START = "🚀"
 ICON_FAILED = "❌"
 ICON_SUCCESS = "✅"
+
+# config/args keyed-identifiers
+# - auto-update config/args with env
+ENVIRONMENT_KEYED_IDENTIFIER: str = r'\[\[PKIT:ENV\]\]'
 
 # environment variables
 # - env-key to store "env-name" to manage environment-specific configs/args

@@ -236,6 +236,29 @@ def replace_dictionary_values(value: Any, update_dict: dict) -> Any:
         return value
 
 
+def keyed_replace_dictionary_values(
+        value: dict,
+        open_marker: str = '<<',
+        close_marker: str = '>>',
+        accepted_regex: str =  c.KEY_STR_REGEX,
+        clean_path: bool =  True,
+        **direct_replacements) -> dict:
+    """
+    FIX ME
+    """
+    regex = f'{open_marker}{accepted_regex}{close_marker}'
+    value_str = json.dumps(value)
+    markers = re.findall(regex, value_str)
+    for m in markers:
+        key = m.strip(open_marker).strip(close_marker)
+        value_str = re.sub(m, value[key], value_str)
+    for k, v in direct_replacements.items():
+        value_str = re.sub(k, v or '', value_str)
+    if clean_path:
+        value_str = re.sub(r'//', '/', value_str)
+    return json.loads(value_str)
+
+
 def safe_join(*parts, sep: str = '/', ext: Optional[str] = None) -> str:
     """Join together non-null values with optional extension.
 
