@@ -279,11 +279,30 @@ def keyed_replace_dictionary_values(
     for k, v in direct_replacements.items():
         value_str = re.sub(k, v or '', value_str)
     if clean_path:
-        value_str = re.sub(r'//', '/', value_str)
+        value_str = clean_path_string(value_str)
     return json.loads(value_str)
 
 
-def safe_join(*parts, sep: str = '/', ext: Optional[str] = None) -> str:
+def clean_path_string(value: str) -> str:
+    """
+    Removes consecutive forward-slashes "/" from string,
+    while preserving protocol delimiters
+
+    Args:
+        value: string to be cleaned
+
+    Returns:
+        string stripped of multiple slashes
+    """
+    value = re.sub(r'(://)/+', r'\1', value)
+    return re.sub(r'(?<!:)//+', '/', value)
+
+
+def safe_join(
+        *parts,
+        sep: str = '/',
+        ext: Optional[str] = None,
+        clean_path: bool =  True) -> str:
     """Join together non-null values with optional extension.
 
     Filters out None/empty values and joins remaining parts with separator.
@@ -293,6 +312,7 @@ def safe_join(*parts, sep: str = '/', ext: Optional[str] = None) -> str:
         *parts: Parts to join (None/empty values will be filtered out)
         sep: Separator to use for joining (default: '/')
         ext: Optional file extension to add (default: None)
+        clean_path: Whether to clean double slashes in paths (default: True)
 
     Returns:
         Joined string with optional extension
@@ -302,6 +322,8 @@ def safe_join(*parts, sep: str = '/', ext: Optional[str] = None) -> str:
     if ext:
         ext = re.sub(r'^\.', '', ext)
         result = f'{result}.{ext}'
+    if clean_path:
+        result = clean_path_string(result)
     return result
 
 
