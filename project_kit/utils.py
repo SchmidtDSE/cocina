@@ -150,6 +150,24 @@ def import_module_from_path(path: str) -> ModuleType:
 #
 # INSPECTION
 #
+def nb_objects(path) -> int:
+    """Count the number of objects (files and directories) in a path.
+
+    Args:
+        path: Directory path to count objects in
+
+    Returns:
+        Number of files and directories in the given path
+
+    Usage:
+        ```python
+        count = nb_objects('/path/to/directory')
+        print(f'Found {count} objects')
+        ```
+    """
+    return len(list(Path(path).glob('*')))
+
+
 def dir_search(
         *search_names: str,
         max_depth: int = MAX_DIR_SEARCH_DEPTH,
@@ -351,6 +369,10 @@ class Timer:
         print('Duration that timer ran:', timer.delta())
         ```
 
+    Properties:
+        running (bool): Whether the timer is currently running
+        initiated (bool): Whether the timer has been started at least once
+
     Args:
         fmt: Format string for datetime display (default: DATE_TIME_FORMAT)
         ts_fmt: Format string for timestamp display (default: TIME_STAMP_FORMAT)
@@ -362,9 +384,13 @@ class Timer:
         self.end_datetime = None
         self.lap_start = None
         self.lap_duration = None
+        self.running = False
+        self.initiated = False
 
     def start(self) -> Optional[str]:
         """Start the timer and return formatted start time."""
+        self.running = True
+        self.initiated = True
         if not self.start_datetime:
             self.start_datetime = datetime.now()
             return self.start_datetime.strftime(self.fmt)
@@ -404,6 +430,7 @@ class Timer:
         Returns:
             Formatted stop time string
         """
+        self.running = False
         if not self.end_datetime:
             self.end_datetime = datetime.now()
         return self.end_datetime.strftime(self.fmt)

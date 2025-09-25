@@ -12,8 +12,9 @@ License: CC-BY-4.0
 # IMPORTS
 #
 import os
+import re
 from pathlib import Path
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, Literal, List, Optional, Tuple, Union
 from project_kit import utils
 from project_kit import constants as c
 
@@ -224,14 +225,14 @@ class Printer(object):
         """
         if header is None:
             header = c.PKIT_CLI_DEFAULT_HEADER
-        if isinstance(header, str):
-            self.header = header
-        elif isinstance(header, list):
-            self.header = utils.safe_join(*header, sep='.')
+        if isinstance(header, (str, list)):
+            if isinstance(header, list):
+                header = utils.safe_join(*header, sep='.')
+            self.header = re.sub(r'/$', '', header)
         else:
             raise ValueError('header must be str or list[str]', header)
 
-    def vspace(self, vspace: Union[bool, int] = False) -> None:
+    def vspace(self, vspace: Union[Literal[True], int] = True) -> None:
         """Print vertical spacing (blank lines).
 
         Args:
@@ -315,11 +316,11 @@ class Printer(object):
         header = self.header
         if subheader:
             header = utils.safe_join(header, *subheader, sep='.')
-        msg = (
-            f'{header} '
-            f'[{self.timer.timestamp()} ({self.timer.state()})]: '
-            f'{message}'
-        )
+        if self.timer.initiated:
+            timer_part = f' [{self.timer.timestamp()} ({self.timer.state()})]: '
+        else:
+            timer_part = ': '
+        msg = utils.safe_join(header, timer_part, message, sep='')
         if key_values:
             for k,v in key_values.items():
                 msg += f'\n- {k}: {v}'

@@ -619,6 +619,30 @@ class ConfigArgs:
         """
         return utils.import_module_from_path(self.job_path)
 
+    def __getattr__(self, key: str) -> Any:
+        """Access properties of config_handler and config args as attributes.
+
+        Provides attribute-style access to configuration values. First checks
+        if the key exists in the config_handler, then falls back to the
+        current object's attributes.
+
+        Args:
+            key: Attribute name to access
+
+        Returns:
+            Value of the requested attribute
+
+        Usage:
+            ```python
+            ca = ConfigArgs('job_name')
+            value = ca.some_config_key  # Access config value as attribute
+            ```
+        """ 
+        if key in self.config_handler:
+            return getattr(self.config_handler, key)
+        else:
+            return getattr(self, key)
+
     def __repr__(self) -> str:
         """Return string representation of ConfigHandler."""
         rep = 'ConfigArgs:\n'

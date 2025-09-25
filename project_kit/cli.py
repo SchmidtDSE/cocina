@@ -14,6 +14,13 @@ from project_kit.config_handler import ConfigArgs, PKitConfig
 from project_kit.printer import Printer
 
 
+#
+# CONSTANTS
+#
+_MISSING_RUN_PART: str = "attribute 'run'"
+_MISSING_MAIN_PART: str = "attribute 'main'"
+
+
 # -------------------------------------------------------------------
 # CLI INTERFACE
 # -------------------------------------------------------------------
@@ -107,6 +114,7 @@ def execute_job(job: str, user_config: Optional[dict] = None, printer: Optional[
     if printer is None:
         pkit, printer = _pkit_printer(job)
         printer.start()
+    error = False
     printer.set_header(job)
     try:
         config_args = ConfigArgs(job, user_config=user_config)
@@ -116,8 +124,11 @@ def execute_job(job: str, user_config: Optional[dict] = None, printer: Optional[
             job_module.run(config_args, printer=printer)
         except TypeError:
             job_module.run(config_args)
-        except AttributeError:
-            job_module.main()
+        except AttributeError as e:
+            if _MISSING_RUN_PART in str(e):
+                job_module.main()
+            else:
+                raise e
     except FileNotFoundError as e:
         printer.stop(f"Job configuration not found", error=e)
         sys.exit(1)
@@ -125,11 +136,15 @@ def execute_job(job: str, user_config: Optional[dict] = None, printer: Optional[
         printer.stop(f"Failed to import job module", error=e)
         sys.exit(1)
     except AttributeError as e:
-        printer.stop(f"Job module missing 'run' xor 'main' function", error=e)
-        sys.exit(1)
-    except Exception as e:
-        printer.stop(f"Job execution failed", error=e)
-        raise e
+        if _MISSING_MAIN_PART in str(e):
+            printer.stop(f"Job module missing 'run' xor 'main' function", error=e)
+            sys.exit(1)
+        else:
+            printer.stop(f"Likely missing configuration-value", error=e)
+            printer.vspace()
+            error = e
+    if error:
+        raise error
 
 
 #
