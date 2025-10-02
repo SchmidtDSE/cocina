@@ -139,6 +139,8 @@ class Printer(object):
             vspace: Union[bool, int] = False,
             icon: Optional[str] = None,
             error: Union[bool, str, Exception] = False,
+            callout: bool = False,
+            callout_div: str = '*',
             **kwargs: Any) -> None:
         """Print a formatted message with optional dividers and spacing.
 
@@ -156,6 +158,9 @@ class Printer(object):
             >>> printer.message('Error', 'processing', div='*', vspace=2)
             >>> printer.message('Info', count=42, status='ok')
         """
+        if callout:
+            self.vspace(2)
+            self.line(callout_div)
         self.vspace(vspace)
         if div:
             if isinstance(div, str):
@@ -172,6 +177,9 @@ class Printer(object):
         self._print(self._format_msg(msg, subheader, kwargs))
         if div:
             self.line(div2)
+        if callout:
+            self.line(callout_div)
+            self.vspace(2)
 
     def error(self,
             error: Union[bool, str, Exception],
