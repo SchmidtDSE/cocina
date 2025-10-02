@@ -6,7 +6,7 @@ Project Kit (PKIT) is a collection of tools for building out python projects. It
 2. [ConfigArgs](#configargs): a `class` used to manage arguments/job-run-configurations
 3. [CLI](#cli): a cli for launching and running jobs using these configuration files
 
-PKit also includes a serveral other useful [tools](#tools) such a [Timer](#timer), a [Printer (Logger)](#printer), as well as a number of python helpers to read and write files, join strings, search directories etc
+PKit also includes a serveral other useful [tools](#tools) such a [Timer](#timer), a [Printer (Logger)](#printer), as well as a number of python helpers to read and write files, join strings, search directories etc.
 
 **Table of Contents**
 
@@ -20,6 +20,7 @@ PKit also includes a serveral other useful [tools](#tools) such a [Timer](#timer
 - [Project Config Files](#project-config-files)
   - [ConfigHandler](#confighandler)
   - [ConfigArgs](#configargs)
+- [CLI](#cli)
 - [Tools](#tools)
   - [Printer](#printer)
   - [Timer](#timer)
@@ -75,11 +76,11 @@ An instance `ch` of `ConfigHandler` manages:
 - constants: defined in `your_module/constants.py`
   - values that will never change (ie `M2_PER_HECTARE =  10000`)
   - If you attempt to assign a value to one of your constants in a config or arg file an error will be thrown
-- config: defined in `config/config.yaml`, or the environment-specific `config/env-name.yaml`
+- config: defined in `config/config.yaml`, or the environment-specific `config/<env-name>.yaml`
   - values that can change
   - examples include:
     - default values: `def some_method(..., return_array: ch.RETURN_ARRAY):`
-    - project config: `uri = f'gs://{ch.GCS_BUCKET}/{ch.GCS_FOLDER}/users.yaml'`
+    - project specific values: `uri = f'gs://{ch.GCS_BUCKET}/{ch.GCS_FOLDER}/users.yaml'`
 
 #### ConfigArgs: manages the run configuration for specific jobs/scripts
 
@@ -97,7 +98,7 @@ if __name__ == "__main__":
     main()
 ```
 
-There could be a lot of configuration hidden in the `...`s.  There is probably some cli-arg-parsing, hard-coded constants, and when calling `load_data`, `process_data` and `save_data` whatever parameters that are needed for this particular run. Moreover, these hard-coded constants and parameter values might be changing that configuration on a regular basis. 
+There could be a lot of configuration hidden in the `...`s.  There is probably some cli-arg-parsing, hard-coded constants, and when calling `load_data`, `process_data` and `save_data` there are the parameters that are needed for this particular run. Moreover, these hard-coded constants and parameter values might be changing on a regular basis. 
 
 With PKit we can have a single job
 
@@ -110,9 +111,9 @@ def run(config_args, printer=None) -> None:
   save_data(data, *config_args.save_data.args, **config_args.save_data.kwargs)
 ```
 
-In our partial script above this almost looks more complicated. But its **much** simpler.
+In the partial script above this almost looks more complicated. But its **much** simpler.
 The cli-arg-parsing is handled by pkit's [CLI](#cli), and the parameter values and hard-coded constants are handled by `ca` (and sometimes `ch`).
-Remember any method can take `*args, **kwargs` even if the method has no args/kwargs (ask long as `args = []`, `kwargs = {}`). 
+Remember method can take `*args, **kwargs` even if the method has no args/kwargs (ask long as `args = []`, `kwargs = {}`). 
 
 When distinguishing when to use the main/env-configuration files, or a job-config file, ask yourself: is this a run parameter? do i want to access it directly (such as `ch.MAX_SCALE`) or through args/kwargs `(..., *config_args.method_name.args, **config_args.method_name.kwargs)`.
 
@@ -124,10 +125,10 @@ Let's quickly walk through an example. Assume we have the following in our confi
 
 ```bash
 ├── config
-│ ├── args               # This directory contains argument (args and kwargs) for specific scripts
-│ │ ├── job_1.yaml
+│ ├── args            # This directory contains argument (args and kwargs) for specific scripts
+│ │ ├── job_1.yaml    # This contains the run configuration for job_1
 │ │ ├── job_2.yaml
-│ │ └── job_group_1
+│ │ └── job_group_1   # Run configurations can be grouped into subfolders
 │ │     └── job_a1.yaml
 │ ├── config.yaml     # This file contains constants/configurations to be used throughout ones package
 │ ├── dev.yaml        # Updates the values (or adds new values to) config.yaml for a "dev" env
@@ -396,6 +397,63 @@ ca.load_data.kwargs # ==> {}
 #### SELF REFERENTIAL MAGIC
 
 Note that something else is happening in the above description. `ca.transform_data.kwargs` is returning the `database_url` defined in the `config:` section, `ca.extract_data.kwargs` is returning `debug` mode from either the `env.prod:` or `env.dev:` section, and `ca.load_data.args` is returning `MAX_SCALE` from the main-configuration (or environment-configuration) files discussed [above](#confighandler). 
+
+---
+
+## CLI
+
+The PKit CLI has two simple methods: `init` to setup the [.pkit](#pkit-configuration) configuration, and `run` to run jobs.
+
+### PKIT INIT
+
+```bash
+$ pixi run pkit init --help
+Usage: pkit init [OPTIONS]
+
+  initialize project with .pkit file
+
+Options:
+  -l, --log_dir TEXT  Log Directory
+  -p, --package TEXT  Main Package Name
+  -f, --force
+  --help              Show this message and exit.
+```
+
+You can edit values in `.pkit` directory after it has been created. There are two values `log_dir`, and `constants_package_name` that you can set on creation with the `--log_dir` and `--package` flags, respectively.
+
+- log_dir: The directory for log files
+  - relative to project root
+  - if `null` print-only
+  - defaults to `null`
+
+- package: Package containing "constants_module"
+  - ConfigHandler attempts to auto-detect if null and not provided through 'package_name' arg
+  - defaults to `null`
+
+See [PKit Configuration](#pkit-configuration) for more details
+
+### PKIT RUN
+
+```bash
+$ pixi run pkit job --help 
+Usage: pkit job [OPTIONS] [JOBS]...
+
+  job help text
+
+Options:
+  -e, --env TEXT  Environment to run job in
+  -v, --verbose   Enable verbose output
+  --dry_run
+  --help          Show this message and exit.
+```
+
+**TODO: Detail description of `job`**:
+
+- you can pass multiple jobs
+- users config
+- env
+- dry_run
+
 
 ---
 
