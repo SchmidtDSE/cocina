@@ -9,10 +9,38 @@ Project Kit (PKIT) is a comprehensive collection of tools for building structure
 3. **[CLI](#cli)** - Command-line interface for project initialization and job execution
 4. **[Tools](#tools)** - Utilities including [Timer](#timer), [Printer](#printer), and file system helpers
 
-## Quick Start
 
-- [Installation](#install) • [Initialization](#initialize) • [Basic Example](#example)
-- [Configuration](#project-config-files) • [CLI Usage](#cli) • [Documentation](../project_kit.wiki/)
+---
+
+## 📋 Table of Contents
+
+**Getting Started:**
+- [Install](#install)
+- [Initialize](#initialize)
+- [Overview](#overview)
+  - [Key Concepts](#key-concepts)
+  - [Before and After](#before-and-after)
+- [Example](#example)
+  - [Advanced Features](#advanced-features)
+
+**Configuration:**
+- [PKit Configuration](#pkit-configuration)
+- [Configuration Files](#configuration-files)
+  - [ConfigHandler](#confighandler)
+  - [ConfigArgs](#configargs)
+
+**Usage:**
+- [CLI](#cli)
+  - [Initialize Project](#initialize-project)
+  - [Run Jobs](#run-jobs)
+- [Tools](#tools)
+  - [Printer](#printer)
+  - [Timer](#timer)
+
+**Development:**
+- [Development](#development)
+- [Documentation](#documentation)
+- [Contributing](#contributing)
 
 ---
 
@@ -286,7 +314,6 @@ print(timer.delta())    # Total duration string
 ```bash
 # All commands use pixi
 pixi run jupyter lab
-pixi run python scripts/example.py
 ```
 
 **Style:** Follows PEP8 standards. See [setup.cfg](./setup.cfg) for project-specific rules.
