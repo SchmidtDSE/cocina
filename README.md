@@ -12,39 +12,31 @@ Project Kit (PKIT) is a comprehensive collection of tools for building structure
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 
-**Getting Started:**
-- [Install](#install)
-- [Initialize](#initialize)
-- [Overview](#overview)
-  - [Key Concepts](#key-concepts)
-  - [Before and After](#before-and-after)
-- [Example](#example)
-  - [Advanced Features](#advanced-features)
-
-**Configuration:**
+- [Getting Started](#getting-started)
+    - [Overview](#overview)
+    - [Example](#example)
+    - [Advanced Features](#advanced-features)
 - [PKit Configuration](#pkit-configuration)
 - [Configuration Files](#configuration-files)
   - [ConfigHandler](#confighandler)
   - [ConfigArgs](#configargs)
-
-**Usage:**
 - [CLI](#cli)
   - [Initialize Project](#initialize-project)
   - [Run Jobs](#run-jobs)
 - [Tools](#tools)
   - [Printer](#printer)
   - [Timer](#timer)
-
-**Development:**
 - [Development](#development)
 - [Documentation](#documentation)
 - [Contributing](#contributing)
 
 ---
 
-## Install
+## Getting Started
+
+**INSTALL**:
 
 ```bash
 git clone https://github.com/SchmidtDSE/project_kit.git
@@ -56,7 +48,7 @@ Add to your `pyproject.toml`:
 project_kit = { path = "path/to/project_kit", editable = true }
 ```
 
-## Initialize
+**INITIALIZE**:
 
 ```bash
 pixi run pkit init --log_dir logs --package your_package_name
@@ -67,11 +59,11 @@ pixi run pkit init --log_dir logs --package your_package_name
 
 ---
 
-## Overview
+### Overview
 
 Project Kit separates **configuration** (values that can change) from **constants** (values that never change) and **job arguments** (run-specific parameters).
 
-### Key Concepts
+#### Key Concepts
 
 - **ConfigHandler** (`ch`) - Manages constants and main configuration
   - Constants: `your_module/constants.py` (protected from modification)
@@ -82,7 +74,7 @@ Project Kit separates **configuration** (values that can change) from **constant
   - Job configs: `config/args/job_name.yaml`
   - Usage: `*ca.method_name.args, **ca.method_name.kwargs`
 
-### Before and After
+#### Before and After
 
 **Traditional approach:**
 ```python
@@ -102,9 +94,7 @@ def run(config_args, printer=None):
 
 All parameters are now externalized to YAML configuration files, making scripts reusable and maintainable.
 
----
-
-## Example
+### Example
 
 **Project Structure:**
 ```
