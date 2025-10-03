@@ -18,7 +18,7 @@ packages = [
 
 [tool.pixi.project]
 channels = ["conda-forge"]
-platforms = ["linux-64", "osx-64", "osx-arm64"]
+platforms = ["linux-64", "osx-64", "osx-arm64", "linux-aarch64"]
 
 [tool.pixi.pypi-dependencies]
 project_kit = { path = ".", editable = true }
