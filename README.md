@@ -176,7 +176,7 @@ config/
 Manages constants and main configuration with environment support.
 
 ```python
-from project_kit import ConfigHandler
+from project_kit.config_handler import ConfigHandler
 
 ch = ConfigHandler()
 print(ch.DATABASE_URL)  # From config.yaml
@@ -194,7 +194,7 @@ print(ch.MAX_SCALE)     # From constants.py (protected)
 Loads job-specific configurations with structured argument access.
 
 ```python
-from project_kit import ConfigArgs
+from project_kit.config_handler import ConfigArgs
 
 ca = ConfigArgs('data_pipeline')
 # Access method arguments
@@ -253,7 +253,7 @@ pixi run pkit job data_pipeline --dry_run
 Professional output with timestamps, headers, and optional file logging.
 
 ```python
-from project_kit import Printer
+from project_kit.printer import Printer
 
 printer = Printer(header='MyApp')
 printer.start('Processing begins')
@@ -262,15 +262,17 @@ printer.stop('Complete')
 ```
 
 ### Timer
-Simple timing functionality with lap support.
+Simple timing functionality with duration tracking.
 
 ```python
-from project_kit import Timer
+from project_kit.utils import Timer
 
 timer = Timer()
-timer.start()
-timer.lap('checkpoint1')
-duration = timer.stop()
+timer.start()           # Start timing
+print(timer.state())    # Current elapsed time
+print(timer.now())      # Current timestamp
+stop_time = timer.stop()     # Stop timing
+print(timer.delta())    # Total duration string
 ```
 
 > See [complete documentation](docs/) for all utility functions and helpers.
