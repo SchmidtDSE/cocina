@@ -1,14 +1,12 @@
 # Project Kit
 
-Project Kit (PKIT) is a comprehensive collection of tools for building structured Python projects. It provides sophisticated configuration management, job execution capabilities, and professional CLI interfaces.
+Project Kit (PKIT) is a collection of tools for building structured Python projects. It provides sophisticated configuration management, job execution capabilities, and a professional CLI interface.
 
 ## Core Components
 
-1. **[ConfigHandler](#confighandler)** - Unified configuration management using YAML files, constants, and environment variables
+1. **[ConfigHandler](#confighandler)** - Unified configuration management, constants, and environment variables
 2. **[ConfigArgs](#configargs)** - Job-specific configuration loading with structured argument access
 3. **[CLI](#cli)** - Command-line interface for project initialization and job execution
-4. **[Tools](#tools)** - Utilities including [Timer](#timer), [Printer](#printer), and file system helpers
-
 
 ---
 
@@ -30,7 +28,7 @@ Project Kit (PKIT) is a comprehensive collection of tools for building structure
   - [Timer](#timer)
 - [Development](#development)
 - [Documentation](#documentation)
-- [Contributing](#contributing)
+
 
 ---
 
@@ -65,47 +63,60 @@ Project Kit separates **configuration** (values that can change) from **constant
 
 #### Key Concepts
 
-- **ConfigHandler** (`ch`) - Manages constants and main configuration
+- **ConfigHandler** (`ch`) - Manages constants and project configuration
   - Constants: `your_module/constants.py` (protected from modification)
-  - Config: `config/config.yaml` + environment overrides
-  - Usage: `ch.DATABASE_URL`, `ch.MAX_SCALE`
+  - General Config: `config/config.yaml`
+  - Env Config: `config/<environment-name>.yaml`
+  - Usage: `ch.DATABASE_URL`, `ch.get(MAX_SCALE, 1000)`
 
 - **ConfigArgs** (`ca`) - Manages job-specific run configurations
   - Job configs: `config/args/job_name.yaml`
-  - Usage: `*ca.method_name.args, **ca.method_name.kwargs`
+  - Usage: To run method `method_name`: `method_name(*ca.method_name.args, **ca.method_name.kwargs)`
+
+**Note**: names of configuration and job directories and files can be customized in [.pkit](#pkit-configuration).
 
 #### Before and After
 
 **Traditional approach:**
 ```python
+SOURCE = "path/to/src.parquet"
+OUTPUT_DEST = "path/to/output"
+
 def main():
-    data = load_data("hardcoded_source", limit=1000, debug=True)
+    data = load_data(SOURCE, limit=1000, debug=True)
     data = process_data(data, scale=100, validate=False)
-    save_data(data, "hardcoded_output", format="json")
+    save_data(data, OUTPUT_DEST, format="json")
+
+if __name__ == "__main__":
+    main()
 ```
 
 **With Project Kit:**
 ```python
-def run(config_args, printer=None):
+def run(config_args):
     data = load_data(*config_args.load_data.args, **config_args.load_data.kwargs)
     data = process_data(data, *config_args.process_data.args, **config_args.process_data.kwargs)
     save_data(data, *config_args.save_data.args, **config_args.save_data.kwargs)
 ```
 
-All parameters are now externalized to YAML configuration files, making scripts reusable and maintainable.
+All parameters are now externalized to YAML configuration files, making scripts reusable and maintainable. CLI mangagement/arg-parsing is handled through the pkit [CLI](#cli)
 
 ### Example
 
 **Project Structure:**
 ```
 my_project/
+├── my_package/                 # Python package
+│   ├── constants.py            # Project Constants (protected from modification)
+│   ├── ...                     # Modules
+│   └── data_manager.py         # Named example python module
 ├── config/
-│   ├── config.yaml           # Main configuration
-│   ├── prod.yaml            # Production overrides
+│   ├── config.yaml             # Main configuration
+│   ├── prod.yaml               # Production configuration overrides
 │   └── args/
 │       └── data_pipeline.yaml  # Job configuration
 └── jobs/
-    └── data_pipeline.py     # Job implementation
+    └── data_pipeline.py        # Job implementation
 ```
 
 **Configuration (`config/args/data_pipeline.yaml`):**
@@ -141,15 +152,26 @@ pixi run pkit job data_pipeline
 pixi run pkit job data_pipeline --env prod
 ```
 
-> See the [pkit_example/](pkit_example/) directory for complete working examples.
+#### RUN AND MAIN METHODS
 
-### Advanced Features
+When running a job, the CLI requires either a `run` method that takes arguments `config_args: ConfigArgs`, `printer: Printer`, or a `run` method that takes only `config_args: ConfigArgs`, or a `main` method that does not have any arguments.
 
-- **Logging with Printer**: Add `printer.message()` calls for professional output and logging
-- **Notebook Integration**: Use `ConfigArgs('job_name')` directly in notebooks and scripts
-- **Legacy Support**: Jobs without configs can use `main()` method instead of `run()`
+Priority ordering is:
 
-> For detailed documentation on all features, see the [complete documentation](../project_kit.wiki/).
+1. `run(config_args, printer)`   | passing both a `ConfigArgs` and `Printer` instance
+2. `run(config_args)`            | passing a `ConfigArgs` instance
+3. `main()`                      | for jobs without configuration (legacy scripts)
+
+
+#### USER CODEBASE/NOTEBOOKS
+
+Although the main focus is on building and running configured "jobs", [ConfigArgs](#configargs) can also be used in your code (a notebook for example):
+
+```python
+# Load job-specific configuration
+ca = ConfigArgs('job_group_1.job_a1')
+jobs.job_group_1.job_a1.step_1(*ca.step_1.args, **ca.step_1.kwargs)
+```
 
 ---
 
@@ -312,20 +334,12 @@ pixi run jupyter lab
 
 ## Documentation
 
-**[📖 Complete Documentation](../project_kit.wiki/)** | **[🚀 Getting Started](../project_kit.wiki/getting-started.md)** | **[⚙️ Configuration](../project_kit.wiki/configuration.md)** | **[🔧 API Reference](../project_kit.wiki/api.md)**
-
-### Quick Links
-
-- **[Getting Started](../project_kit.wiki/getting-started.md)** - Installation, initialization, and first job
-- **[Configuration Guide](../project_kit.wiki/configuration.md)** - Complete configuration management
-- **[Job System](../project_kit.wiki/jobs.md)** - Creating and running jobs
-- **[CLI Reference](../project_kit.wiki/cli.md)** - Command-line interface
-- **[Examples](../project_kit.wiki/examples.md)** - Detailed usage examples
-- **[Advanced Topics](../project_kit.wiki/advanced.md)** - Complex patterns and extensions
-
-## Contributing
-
-See [pkit_example/](pkit_example/) for working examples and [CLAUDE.md](claude/CLAUDE.md) for development guidelines.
+- **[Getting Started](/wiki/getting-started)** - Installation, initialization, and first job
+- **[Configuration Guide](/wiki/configuration)** - Complete configuration management
+- **[Job System](/wiki/jobs)** - Creating and running jobs
+- **[CLI Reference](/wiki/cli)** - Command-line interface
+- **[Examples](/wiki/examples)** - Detailed usage examples
+- **[Advanced Topics](/wiki/advanced)** - Complex patterns and extensions
 
 ## License
 
