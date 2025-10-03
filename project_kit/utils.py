@@ -21,7 +21,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, List, Optional, Union
 from types import ModuleType
-from project_kit import constants as c
+from project_kit.constants import PKIT_NOT_FOUND, KEY_STR_REGEX
 
 
 #
@@ -100,7 +100,7 @@ def safe_copy_yaml(
             processed_str = ''
             for line in file:
                 for k, v in replacements.items():
-                    if (v != c.PKIT_NOT_FOUND) and re.search(f'^{k}', line):
+                    if (v != PKIT_NOT_FOUND) and re.search(f'^{k}', line):
                         line = f'{k}: {json.dumps(v)}'
                     else:
                         line = line.strip()
@@ -258,7 +258,7 @@ def keyed_replace_dictionary_values(
         value: dict,
         open_marker: str = '<<',
         close_marker: str = '>>',
-        accepted_regex: str =  c.KEY_STR_REGEX,
+        accepted_regex: str =  KEY_STR_REGEX,
         clean_path: bool =  True,
         **direct_replacements) -> dict:
     """Replace dictionary values using keyed markers and direct replacements.
@@ -271,7 +271,7 @@ def keyed_replace_dictionary_values(
         value: Dictionary to process for value replacement
         open_marker: Opening marker pattern (default: '<<')
         close_marker: Closing marker pattern (default: '>>')
-        accepted_regex: Regex pattern for valid keys (default: c.KEY_STR_REGEX)
+        accepted_regex: Regex pattern for valid keys (default: KEY_STR_REGEX)
         clean_path: Whether to clean double slashes in paths (default: True)
         **direct_replacements: Direct key-value string replacements to apply
 
