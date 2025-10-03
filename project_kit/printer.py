@@ -15,8 +15,11 @@ import os
 import re
 from pathlib import Path
 from typing import Any, Literal, List, Optional, Tuple, Union
-from project_kit import utils
-from project_kit import constants as c
+from project_kit.utils import Timer, safe_join, write
+from project_kit.constants import (
+    ICON_START, ICON_SUCCESS, ICON_FAILED, PKIT_CLI_DEFAULT_HEADER,
+    project_kit_log_path_key
+)
 
 
 #
@@ -40,7 +43,7 @@ class Printer(object):
                  log_dir: Optional[str] = None,
                  log_name_part: Optional[str] = None,
                  log_path: Optional[str] = None,
-                 timer: Optional[utils.Timer] = None,
+                 timer: Optional[Timer] = None,
                  header: Optional[Union[str, List[str]]] = None,
                  div_len: int = 100,
                  icons: bool = True,
@@ -66,7 +69,7 @@ class Printer(object):
         self.log_dir = log_dir
         self.log_name_part = log_name_part
         self.log_path = log_path
-        self.timer = timer or utils.Timer()
+        self.timer = timer or Timer()
         self.div_len = div_len
         self.icons = icons
         self.silent = silent
@@ -94,7 +97,7 @@ class Printer(object):
         """
         self.timer.start()
         self._process_log_path()
-        self.message(message, div=div, vspace=vspace, icon=c.ICON_START)
+        self.message(message, div=div, vspace=vspace, icon=ICON_START)
 
     def stop(self,
             message: str = 'complete',
@@ -127,7 +130,7 @@ class Printer(object):
             message,
             div=div,
             vspace=vspace,
-            icon=c.ICON_SUCCESS,
+            icon=ICON_SUCCESS,
             error=error,
             **kwargs)
         return time_stop
@@ -171,7 +174,7 @@ class Printer(object):
         if error:
             if error is not False:
                 msg = f'{msg}: {error}'
-            icon = c.ICON_FAILED
+            icon = ICON_FAILED
         if icon and self.icons:
             msg = f'{icon} {msg}'
         self._print(self._format_msg(msg, subheader, kwargs))
@@ -211,13 +214,13 @@ class Printer(object):
         """
         if msg is None:
             msg = DEFAULT_ERROR_MSG
-            self.message(
-                msg=message,
-                error=error,
-                div=div,
-                vspace=vspace,
-                icon=icon,
-                **kwargs)
+        self.message(
+            msg=msg,
+            error=error,
+            div=div,
+            vspace=vspace,
+            icon=icon,
+            **kwargs)
 
     def set_header(self, header: Optional[Union[str, List[str]]] = None) -> None:
         """Set header for messages.
@@ -232,10 +235,10 @@ class Printer(object):
             >>> printer.message("my message")  # job.header [timestamp]: my message
         """
         if header is None:
-            header = c.PKIT_CLI_DEFAULT_HEADER
+            header = PKIT_CLI_DEFAULT_HEADER
         if isinstance(header, (str, list)):
             if isinstance(header, list):
-                header = utils.safe_join(*header, sep='.')
+                header = safe_join(*header, sep='.')
             self.header = re.sub(r'/$', '', header)
         else:
             raise ValueError('header must be str or list[str]', header)
@@ -282,7 +285,7 @@ class Printer(object):
         """
         _append = False
         if not self.log_path:
-            env_log_path = os.environ.get(c.project_kit_log_path_key)
+            env_log_path = os.environ.get(project_kit_log_path_key)
             if env_log_path:
                 self.log_path = env_log_path
                 _append = True
@@ -292,8 +295,8 @@ class Printer(object):
             self.log_name_part = _p.stem.split('.')[-1]
             self.log_dir = str(_p.parent)
         elif self.log_dir:
-            self.log_name = utils.safe_join(self.timer.timestamp(), self.log_name_part, ext=LOG_FILE_EXT, sep='.')
-            self.log_path = utils.safe_join(self.log_dir, self.log_name)
+            self.log_name = safe_join(self.timer.timestamp(), self.log_name_part, ext=LOG_FILE_EXT, sep='.')
+            self.log_path = safe_join(self.log_dir, self.log_name)
         else:
             self.log_name = None
             self.log_path = None
@@ -306,7 +309,7 @@ class Printer(object):
                 )
                 raise ValueError(err)
             else:
-                os.environ[c.project_kit_log_path_key] = self.log_path
+                os.environ[project_kit_log_path_key] = self.log_path
                 Path(self.log_path).parent.mkdir(parents=True, exist_ok=True)
 
 
@@ -323,12 +326,12 @@ class Printer(object):
         """
         header = self.header
         if subheader:
-            header = utils.safe_join(header, *subheader, sep='.')
+            header = safe_join(header, *subheader, sep='.')
         if self.timer.initiated:
             timer_part = f' [{self.timer.timestamp()} ({self.timer.state()})]: '
         else:
             timer_part = ': '
-        msg = utils.safe_join(header, timer_part, message, sep='')
+        msg = safe_join(header, timer_part, message, sep='')
         if key_values:
             for k,v in key_values.items():
                 msg += f'\n- {k}: {v}'
@@ -344,4 +347,4 @@ class Printer(object):
         if not self.silent:
             print(message)
         if self.log_path:
-            utils.write(self.log_path, message, mode='a')
+            write(self.log_path, message, mode='a')
