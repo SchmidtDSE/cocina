@@ -1,458 +1,248 @@
 # Project Kit
 
-Project Kit (PKIT) is a collection of tools for building out python projects. Its main functionality is to manage constants, configuration and arguments, and to simplify/clean-up writing scripts (jobs). These tasks are managed by:
+Project Kit (PKIT) is a comprehensive collection of tools for building structured Python projects. It provides sophisticated configuration management, job execution capabilities, and professional CLI interfaces.
 
-1. [ConfigHandler](#confighandler): a `class` used for managing constants and configuration
-2. [ConfigArgs](#configargs): a `class` used to manage arguments/job-run-configurations
-3. [CLI](#cli): a cli for launching and running jobs using these configuration files
+## Core Components
 
-PKit also includes a serveral other useful [tools](#tools) such a [Timer](#timer), a [Printer (Logger)](#printer), as well as a number of python helpers to read and write files, join strings, search directories etc.
+1. **[ConfigHandler](#confighandler)** - Unified configuration management using YAML files, constants, and environment variables
+2. **[ConfigArgs](#configargs)** - Job-specific configuration loading with structured argument access
+3. **[CLI](#cli)** - Command-line interface for project initialization and job execution
+4. **[Tools](#tools)** - Utilities including [Timer](#timer), [Printer](#printer), and file system helpers
 
-**Table of Contents**
+## Quick Start
 
-- [Setup](#setup)
-  - [Install](#install)
-  - [Initialize](#initialize)
-- [Overview](#overview)
-  - [Configuration, Arguments, and Constants](#configuration-arguments-and-constants)
-  - [Example](#example)
-- [PKit Configuration](#pkit-configuration)
-- [Project Config Files](#project-config-files)
-  - [ConfigHandler](#confighandler)
-  - [ConfigArgs](#configargs)
-- [CLI](#cli)
-- [Tools](#tools)
-  - [Printer](#printer)
-  - [Timer](#timer)
-- [Requirements](#requirements)
-- [Style Guide](#style-guide)
+- [Installation](#install) • [Initialization](#initialize) • [Basic Example](#example)
+- [Configuration](#project-config-files) • [CLI Usage](#cli) • [Documentation](../project_kit.wiki/)
 
 ---
 
-## Setup
-
-### Install
-
-Project will be added to pypi soon. For now install from github:
+## Install
 
 ```bash
 git clone https://github.com/SchmidtDSE/project_kit.git
 ```
 
-Then in your pyproject.toml add
-
+Add to your `pyproject.toml`:
 ```toml
 [tool.pixi.pypi-dependencies]
-project_kit = { path = "your/path/to/project_kit", editable = true }
+project_kit = { path = "path/to/project_kit", editable = true }
 ```
 
-### Initialize
-
-PKit must be initialized. This can be managed through the CLI.
+## Initialize
 
 ```bash
-pixi run pkit init (--log_dir <relative-path-to-log-dir>) \
-                   (--package <main-package-name>) \
-                   (--force) \
+pixi run pkit init --log_dir logs --package your_package_name
 ```
 
-(see details [below](#pkit-configuration))
-
+> See [PKit Configuration](#pkit-configuration) for detailed initialization options.
 
 
 ---
 
 ## Overview
 
+Project Kit separates **configuration** (values that can change) from **constants** (values that never change) and **job arguments** (run-specific parameters).
 
-### Configuration, Arguments, and Constants
+### Key Concepts
 
-Before we begin we need to make some definitions and distinctions between, Configuration, Arguments, and Constants. PKit has two main classes to manage these: [ConfigHandler](#confighandler) and [ConfigArgs](#configargs).
+- **ConfigHandler** (`ch`) - Manages constants and main configuration
+  - Constants: `your_module/constants.py` (protected from modification)
+  - Config: `config/config.yaml` + environment overrides
+  - Usage: `ch.DATABASE_URL`, `ch.MAX_SCALE`
 
-#### ConfigHandler: manages the constants and (main-)configuration
+- **ConfigArgs** (`ca`) - Manages job-specific run configurations
+  - Job configs: `config/args/job_name.yaml`
+  - Usage: `*ca.method_name.args, **ca.method_name.kwargs`
 
-An instance `ch` of `ConfigHandler` manages:
+### Before and After
 
-- constants: defined in `your_module/constants.py`
-  - values that will never change (ie `M2_PER_HECTARE =  10000`)
-  - If you attempt to assign a value to one of your constants in a config or arg file an error will be thrown
-- config: defined in `config/config.yaml`, or the environment-specific `config/<env-name>.yaml`
-  - values that can change
-  - examples include:
-    - default values: `def some_method(..., return_array: ch.RETURN_ARRAY):`
-    - project specific values: `uri = f'gs://{ch.GCS_BUCKET}/{ch.GCS_FOLDER}/users.yaml'`
-
-#### ConfigArgs: manages the run configuration for specific jobs/scripts
-
-An instance `ca` of `ConfigArgs` can manage run-configs for a script. Imagine a script with the following:
-
+**Traditional approach:**
 ```python
-...
-
 def main():
-  data = load_data(...)
-  data = process_data(data, ...)
-  save_data(data, ...)
-
-if __name__ == "__main__":
-    main()
+    data = load_data("hardcoded_source", limit=1000, debug=True)
+    data = process_data(data, scale=100, validate=False)
+    save_data(data, "hardcoded_output", format="json")
 ```
 
-There could be a lot of configuration hidden in the `...`s.  There is probably some cli-arg-parsing, hard-coded constants, and when calling `load_data`, `process_data` and `save_data` there are the parameters that are needed for this particular run. Moreover, these hard-coded constants and parameter values might be changing on a regular basis. 
-
-With PKit we can have a single job
-
+**With Project Kit:**
 ```python
-...
-
-def run(config_args, printer=None) -> None:
-  data = load_data(*config_args.load_data.args, **config_args.load_data.kwargs)
-  data = process_data(data, *config_args.process_data.args, **config_args.process_data.kwargs)
-  save_data(data, *config_args.save_data.args, **config_args.save_data.kwargs)
+def run(config_args, printer=None):
+    data = load_data(*config_args.load_data.args, **config_args.load_data.kwargs)
+    data = process_data(data, *config_args.process_data.args, **config_args.process_data.kwargs)
+    save_data(data, *config_args.save_data.args, **config_args.save_data.kwargs)
 ```
 
-In the partial script above this almost looks more complicated. But its **much** simpler.
-The cli-arg-parsing is handled by pkit's [CLI](#cli), and the parameter values and hard-coded constants are handled by `ca` (and sometimes `ch`).
-Remember method can take `*args, **kwargs` even if the method has no args/kwargs (ask long as `args = []`, `kwargs = {}`). 
-
-When distinguishing when to use the main/env-configuration files, or a job-config file, ask yourself: is this a run parameter? do i want to access it directly (such as `ch.MAX_SCALE`) or through args/kwargs `(..., *config_args.method_name.args, **config_args.method_name.kwargs)`.
+All parameters are now externalized to YAML configuration files, making scripts reusable and maintainable.
 
 ---
 
-### Example
+## Example
 
-Let's quickly walk through an example. Assume we have the following in our config directory:
-
-```bash
-├── config
-│ ├── args            # This directory contains argument (args and kwargs) for specific scripts
-│ │ ├── job_1.yaml    # This contains the run configuration for job_1
-│ │ ├── job_2.yaml
-│ │ └── job_group_1   # Run configurations can be grouped into subfolders
-│ │     └── job_a1.yaml
-│ ├── config.yaml     # This file contains constants/configurations to be used throughout ones package
-│ ├── dev.yaml        # Updates the values (or adds new values to) config.yaml for a "dev" env
-│ ├── prod.yaml       # Updates the values (or adds new values to) config.yaml for a "prod" env
-│ └── silly_env.yaml  # ... (you can name your envs anything you like dev/prod were just examples)
+**Project Structure:**
+```
+my_project/
+├── config/
+│   ├── config.yaml           # Main configuration
+│   ├── prod.yaml            # Production overrides
+│   └── args/
+│       └── data_pipeline.yaml  # Job configuration
+└── jobs/
+    └── data_pipeline.py     # Job implementation
 ```
 
-And some "job" modules:
-
-```bash
-├── jobs
-│ ├── job_1.py
-│ ├── job_2.py
-│ └── job_group_1
-│     └── job_a1.py
-```
-
-Where `config/args/job_group_1/job_a1.yaml` looks like
-
+**Configuration (`config/args/data_pipeline.yaml`):**
 ```yaml
-# config/args/job_group_1/job_a1.yaml
-step_1:
-  args:
-    - value1
-    - value2
+extract_data:
+  args: ["source_table"]
   kwargs:
-    kwarg1: key_value1
-    kwarg2: key_value2
+    limit: 1000
+    debug: false
 
-step_2:
-  kwarg1: key_value1
-  kwarg2: key_value2
-  kwarg3: key_value3
+transform_data:
+  scale: 100
+  validate: true
 
-step_3:
-  - value1
-  - value2
-  - value3
+save_data:
+  - "output_table"
 ```
-and `jobs/job_group_1/job_a1.py` looks like
 
+**Job Implementation (`jobs/data_pipeline.py`):**
 ```python
-from project_kit.config_handler import ConfigHandler
-ch = ConfigHandler()
-
-def step_1(arg1, arg2, kwarg1=None, kwarg2=None):
-  return dict(...)
-
-def step_2(result_1, kwarg1=None, kwarg2=None, kwarg3=None):
-  pass
-
-def step_3(arg1, arg2, arg3):
-  pass
-
-def run(config_args):
-  result_1 = step_1(*config_args.step_1.args, **config_args.step_1.kwargs)
-  step_2(result_1, *config_args.step_2.args, **config_args.step_2.kwargs)
-  step_3(*config_args.step_3.args, **config_args.step_3.kwargs)
-```
-
-We can now run this job (`jobs.job_group_1.job_a1.run(...)`) using the [CLI](#cli):
-
-```bash
-# run jobs.job_group_1.job_a1 for the default env
-pixi run pkit job job_group_1.job_a1
-
-# run jobs.job_group_1.job_a1 for the "prod" env
-pixi run pkit job job_group_1.job_a1 --env prod
-```
-
-#### PRINTER
-
-The run method also can take a [`Printer`](#printer) to make it easy to print formatted strings with timestamps, and (if `log_dir` configured in [.pkit](#pkit-configuration)) log them. The following changes to the `run` method will give a nice set of logs
-
-```python
-
-...
-
 def run(config_args, printer=None):
-  if printer is None:
-    printer = Printer()
-    printer.start()
-  printer.message('step_1')
-  result_1 = step_1(*config_args.step_1.args, **config_args.step_1.kwargs)
-  printer.message('step_1.results', **result_1)
-  printer.message('step_2')
-  step_2(result_1, *config_args.step_2.args, **config_args.step_2.kwargs)
-  printer.message('step_3')
-  step_3(*config_args.step_3.args, **config_args.step_3.kwargs)
+    data = extract_data(*config_args.extract_data.args, **config_args.extract_data.kwargs)
+    data = transform_data(data, *config_args.transform_data.args, **config_args.transform_data.kwargs)
+    save_data(*config_args.save_data.args, **config_args.save_data.kwargs)
 ```
 
-#### USER CODEBASE/NOTEBOOKS
+**Running Jobs:**
+```bash
+# Default environment
+pixi run pkit job data_pipeline
 
-Although the main focus is on building and running configured "jobs"/scripts, [ConfigArgs](#configargs) can also be used in your code (a notebook for example):
-
-```python
-# Load job-specific configuration
-ca = ConfigArgs('job_group_1.job_a1')
-jobs.job_group_1.job_a1.step_1(*ca.step_1.args, **ca.step_1.kwargs)
+# Production environment
+pixi run pkit job data_pipeline --env prod
 ```
 
-#### UNCONFIGURED JOBS
+> See the [pkit_example/](pkit_example/) directory for complete working examples.
 
-It may be, for instance to support existing scripts, you may want to run a script that does not have a configuration file. in this case, rather than having method `run(...)` in your job module/script, have a method `main()` that takes no arguments.
+### Advanced Features
 
-When running a job, the priority order is:
+- **Logging with Printer**: Add `printer.message()` calls for professional output and logging
+- **Notebook Integration**: Use `ConfigArgs('job_name')` directly in notebooks and scripts
+- **Legacy Support**: Jobs without configs can use `main()` method instead of `run()`
 
-1. `run(config_args, printer)`
-2. `run(config_args)`
-3. `main()`
+> For detailed documentation on all features, see the [complete documentation](../project_kit.wiki/).
 
 ---
 
 ## PKit Configuration
 
-The [.pkit](dot_pkit) Configuration file contains project_kit settings and conventions. PKit use this file to:
+The `.pkit` file contains project settings and must be in your project root. It defines:
+- Configuration file locations and naming conventions
+- Project root directory location
+- Environment variable names
 
-1. set conventions: determine the location and names of key (job and config) files and
-   environmental variables
-2. determine the project-root.
+**Required:** Every project must have a `.pkit` file at the root.
 
-IMPORTANT: All project-kit projects must include a copy of this file (renamed to .pkit)
-           located at the project root.
-
-Generate this file by running:
-
-```bash
-pixi run pkit init (--log_dir <relative-path-to-log-dir>) \
-                   (--package <main-package-name>) \
-                   (--force) \
-```
-
-### NOTES
-
-- If `log_dir` is provided `Printer` will automatically write logs (as well as print to screen)
-- If `package` is provided ConfigHandler will always look for `package.constants` when loading. If your project has only 1 package, this is probably the best way to manage it. However, the code-base also allows you to pass it directly and attempts to auto-detect if from the file-path.
-- If `--force` flag is added it will overwrite existing `.pkit files` otherwise it would throw an error
-- If you prefer you can always just copy `dot_pkit` into your directory and rename it to `.pkit`
+**Options:**
+- `--log_dir`: Enable automatic log file creation
+- `--package`: Specify main package for constants loading
+- `--force`: Overwrite existing `.pkit` file
 
 ---
 
-## Project Config Files
+## Configuration Files
 
-Project Kit provides a flexible configuration system that supports both general project settings and job-specific configurations. The system uses YAML files and supports environment-specific overrides. By default, the config files all live in `config/`. Here's an example:
+Project Kit uses YAML files in the `config/` directory:
 
-```bash
-├── config
-│ ├── args              # This directory contains argument (args and kwargs) for specific scripts
-│ │ ├── job_1.yaml      # This contains the run configuration for job_1
-│ │ ├── ...
-│ │ └── group_1         # Run configurations can be grouped into subfolders
-│ │     ├── g1_a.yaml
-│ │     └── g1_b.yaml
-│ ├── config.yaml       # This file contains constants/configurations to be used throughout ones package
-│ ├── dev.yaml          # Updates the values (or adds new values to) config.yaml for a "dev" env
-│ └── silly_env.yaml    # ... (you can name your envs anything you like dev/prod were just examples)
+```
+config/
+├── config.yaml           # Main configuration
+├── dev.yaml             # Development environment overrides
+├── prod.yaml            # Production environment overrides
+└── args/                # Job-specific configurations
+    ├── job_name.yaml    # Individual job config
+    └── group_name/      # Grouped job configs
+        └── job_a.yaml
 ```
 
-**Main Configuration Files (under `project_root/config/`):**
-
-- **`config.yaml`** - General configuration across all environments
-- **`<env_name>.yaml`** - Environment-specific values (overwrites `config.yaml`)
-
-**Job Configuration Files (under `project_root/config/args/`):**
-
-- Job-specific configuration files contain method arguments and job settings
+**Configuration Types:**
+- **Main Config**: `config.yaml` - shared across all environments
+- **Environment Config**: `{env}.yaml` - environment-specific overrides
+- **Job Config**: `args/{job}.yaml` - job-specific parameters and arguments
 
 ### ConfigHandler
 
-The [`ConfigHandler`](./project_kit/config_handler.py) class provides unified configuration management using YAML files, constants, and environment variables.
+Manages constants and main configuration with environment support.
 
-(more docs to come: see Quick Start for examples)
+```python
+from project_kit import ConfigHandler
 
-TODO: more detailed explanation
-TODO: explain the role of `constants.py`
+ch = ConfigHandler()
+print(ch.DATABASE_URL)  # From config.yaml
+print(ch.MAX_SCALE)     # From constants.py (protected)
+```
+
+**Features:**
+- Loads constants from `your_package/constants.py`
+- Loads configuration from `config/config.yaml`
+- Environment-specific overrides from `config/{env}.yaml`
+- Dict-style and attribute access patterns
 
 ### ConfigArgs
 
-The [`ConfigArgs`](./project_kit/config_handler.py) class manages job-specific configuration and method arguments, providing structured access to job parameters.
-
-**Job Configuration File Structure:**
-
-Consider a file `config/args/example_job.yaml`:
-
-```yaml
-# -----------------------------------------------------------------------------
-# By default config/args/example_job.yaml is connected to jobs/example_job.py
-# However, by uncommenting the line below it will be connected with jobs/data_pipeline.py
-# -----------------------------------------------------------------------------
-# job: "data_pipeline"
-
-# -----------------------------------------------------------------------------
-# You can update the configurations managed by ConfigHandler using `config` and `env` keys.
-# -----------------------------------------------------------------------------
-# global configuration updates
-config:
-  database_url: "sqlite:///job.db"
-  debug_mode: false
-
-# environment-specific overrides
-env:
-  prod:
-    load_data: true
-  dev:
-    load_data: false
-    debug_mode: true
-
-# -----------------------------------------------------------------------------
-# The rest of the keys lead to properties on `ca = ConfigArgs()` instances
-# -----------------------------------------------------------------------------
-extract_data:
-  args: ["source_table"]
-  kwargs:
-    limit: 10000
-    filter_active: true
-    debug: "debug_mode"
-
-compute_for_scales:
-  - 10
-  - 100
-  - MAX_SCALE
-
-transform_data:
-  url: database_url
-  batch_size: 500
-  parallel: true
-
-load_data: load_data
-```
-
-This data can now be accessed through a `ca = ConfigArgs()` instance. For example, in the "prod" environment: `ca.extract_data.args` returns `["source_table"]`, and  `ca.extract_data.kwargs` returns 
+Loads job-specific configurations with structured argument access.
 
 ```python
-{
-    "limit": 10000
-    "filter_active": True
-    "debug": False
-}
+from project_kit import ConfigArgs
+
+ca = ConfigArgs('data_pipeline')
+# Access method arguments
+ca.extract_data.args     # ["source_table"]
+ca.extract_data.kwargs   # {"limit": 1000, "debug": False}
 ```
 
-Note: in the "dev" environment we would have recieved `debug: True`. 
+**YAML Configuration Parsing:**
+- Dict with `args`/`kwargs` keys → extracts args and kwargs
+- Dict without special keys → `args=[]`, `kwargs=dict`
+- List/tuple → `args=value`, `kwargs={}`
+- Single value → `args=[value]`, `kwargs={}`
 
-#### PARSING RULES
-
-ConfigArgs parses the values using the following parsing-rules:
-
-- If value is a dict:
-  - If keys are exclusively 'args' and/or 'kwargs': extract `args`/`kwargs` from value
-  - Otherwise: `args = []` and `kwargs = value`
-- If value is a list or tuple: `args = value`, `kwargs = {}`
-- Otherwise: `args = [value]`, `kwargs = {}`
-
-So for the above job-config (in "dev" environment"), assuming `MAX_SCALE = 1000` is defined in a main-configuration file:
-
-```python
-ca.compute_for_scales.args # ==> [10, 100, 1000] 
-ca.compute_for_scales.kwargs # ==> {}
-
-ca.transform_data.args # ==> [] 
-ca.transform_data.kwargs # ==> {'url': 'sqlite:///job.db', 'batch_size': 500, 'parallel': True}
-
-ca.load_data.args # ==> [True]
-ca.load_data.kwargs # ==> {}
-```
-
-#### SELF REFERENTIAL MAGIC
-
-Note that something else is happening in the above description. `ca.transform_data.kwargs` is returning the `database_url` defined in the `config:` section, `ca.extract_data.kwargs` is returning `debug` mode from either the `env.prod:` or `env.dev:` section, and `ca.load_data.args` is returning `MAX_SCALE` from the main-configuration (or environment-configuration) files discussed [above](#confighandler). 
+**Features:**
+- Environment-specific overrides
+- Reference resolution from main config
+- Dynamic value substitution 
 
 ---
 
 ## CLI
 
-The PKit CLI has two simple methods: `init` to setup the [.pkit](#pkit-configuration) configuration, and `run` to run jobs.
-
-### PKIT INIT
+### Initialize Project
 
 ```bash
-$ pixi run pkit init --help
-Usage: pkit init [OPTIONS]
-
-  initialize project with .pkit file
-
-Options:
-  -l, --log_dir TEXT  Log Directory
-  -p, --package TEXT  Main Package Name
-  -f, --force
-  --help              Show this message and exit.
+pixi run pkit init --log_dir logs --package your_package
 ```
 
-You can edit values in `.pkit` directory after it has been created. There are two values `log_dir`, and `constants_package_name` that you can set on creation with the `--log_dir` and `--package` flags, respectively.
-
-- log_dir: The directory for log files
-  - relative to project root
-  - if `null` print-only
-  - defaults to `null`
-
-- package: Package containing "constants_module"
-  - ConfigHandler attempts to auto-detect if null and not provided through 'package_name' arg
-  - defaults to `null`
-
-See [PKit Configuration](#pkit-configuration) for more details
-
-### PKIT RUN
+### Run Jobs
 
 ```bash
-$ pixi run pkit job --help 
-Usage: pkit job [OPTIONS] [JOBS]...
+# Run a single job
+pixi run pkit job data_pipeline
 
-  job help text
+# Run with specific environment
+pixi run pkit job data_pipeline --env prod
 
-Options:
-  -e, --env TEXT  Environment to run job in
-  -v, --verbose   Enable verbose output
-  --dry_run
-  --help          Show this message and exit.
+# Run multiple jobs
+pixi run pkit job job1 job2 job3
+
+# Dry run (validate without executing)
+pixi run pkit job data_pipeline --dry_run
 ```
 
-**TODO: Detail description of `job`**:
-
-- you can pass multiple jobs
-- users config
-- env
-- dry_run
+**Options:**
+- `--env`: Environment configuration to use (dev, prod, etc.)
+- `--verbose`: Enable detailed output
+- `--dry_run`: Validate configuration without running
 
 
 ---
@@ -460,88 +250,64 @@ Options:
 ## Tools
 
 ### Printer
+Professional output with timestamps, headers, and optional file logging.
 
-The [`Printer`](./project_kit/printer.py) class provides structured output and logging with timestamps, dividers, and optional file output.
-
-**Basic Usage:**
 ```python
-from project_kit.printer import Printer
+from project_kit import Printer
 
-# Create printer with header and optional log directory
-printer = Printer(header='MyApp', log_dir='/logs')
-
-# Start session (begins timing and creates log file if log_dir specified)
+printer = Printer(header='MyApp')
 printer.start('Processing begins')
-
-# Print messages with optional dividers and spacing
-printer.message('Status update')
-printer.message('Error', 'processing', div='*', vspace=2)
-printer.message('Info', count=42, status='ok')
-
-# Stop session (prints duration and returns stop time)
-stop_time = printer.stop('Processing complete')
+printer.message('Status update', count=42, status='ok')
+printer.stop('Complete')
 ```
 
 ### Timer
+Simple timing functionality with lap support.
 
-The [`Timer`](./project_kit/utils.py) class provides simple timing functionality with lap support and multiple output formats.
-
-**Basic Usage:**
 ```python
-from project_kit.utils import Timer
+from project_kit import Timer
 
-# Create and start timer
 timer = Timer()
 timer.start()
-
-# Check elapsed time
-print(f"Elapsed: {timer.state()}")
-
-# Add lap times
 timer.lap('checkpoint1')
-timer.lap('checkpoint2')
-
-# Stop and get duration
 duration = timer.stop()
-print(f"Total duration: {timer.delta()}")
 ```
+
+> See [complete documentation](docs/) for all utility functions and helpers.
 
 ---
 
-## Requirements
+## Development
 
-Requirements are managed through a [Pixi](https://pixi.sh/latest) "project" (similar to a conda environment). After pixi is installed use `pixi run <cmd>` to ensure the correct project is being used. For example,
-
-```bash
-# launch jupyter
-pixi run jupyter lab .
-
-# run a script
-pixi run python scripts/hello_world.py
-```
-
-The first time `pixi run` is executed the project will be installed (note this means the first run will be a bit slower). Any changes to the project will be updated on the subsequent `pixi run`. It is unnecessary, but you can run `pixi install` after changes - this will update your local environment, so that it does not need to be updated on the next `pixi run`.
-
-Note, the repo's `pyproject.toml`, and `pixi.lock` files ensure `pixi run` will just work. No need to recreate an environment. Additionally, the `pyproject.toml` file includes `project_kit = { path = ".", editable = true }`. This line is equivalent to `pip install -e .`, so there is no need to pip install this module.
-
-The project was initially created using a `package_names.txt` and the following steps. Note that this should **NOT** be re-run as it will create a new project (potentially changing package versions).
+**Requirements:** Managed with [Pixi](https://pixi.sh/latest) - no manual environment setup needed.
 
 ```bash
-#
-# IMPORTANT: Do NOT run this unless you explicitly want to create a new pixi project
-#
-# 1. initialize pixi project (in this case the pyproject.toml file had already existed)
-pixi init . --format pyproject
-# 2. add specified python version
-pixi add python=3.11
-# 3. add packages (note this will use pixi magic to determine/fix package version ranges)
-pixi add $(cat package_names.txt)
-# 4. add pypi-packages, if any (note this will use pixi magic to determine/fix package version ranges)
-pixi add --pypi $(cat pypi_package_names.txt)
+# All commands use pixi
+pixi run jupyter lab
+pixi run python scripts/example.py
 ```
+
+**Style:** Follows PEP8 standards. See [setup.cfg](./setup.cfg) for project-specific rules.
 
 ---
 
-## Style Guide
+## Documentation
 
-Following PEP8. See [setup.cfg](./setup.cfg) for exceptions. Keeping honest with `pycodestyle .`
+**[📖 Complete Documentation](../project_kit.wiki/)** | **[🚀 Getting Started](../project_kit.wiki/getting-started.md)** | **[⚙️ Configuration](../project_kit.wiki/configuration.md)** | **[🔧 API Reference](../project_kit.wiki/api.md)**
+
+### Quick Links
+
+- **[Getting Started](../project_kit.wiki/getting-started.md)** - Installation, initialization, and first job
+- **[Configuration Guide](../project_kit.wiki/configuration.md)** - Complete configuration management
+- **[Job System](../project_kit.wiki/jobs.md)** - Creating and running jobs
+- **[CLI Reference](../project_kit.wiki/cli.md)** - Command-line interface
+- **[Examples](../project_kit.wiki/examples.md)** - Detailed usage examples
+- **[Advanced Topics](../project_kit.wiki/advanced.md)** - Complex patterns and extensions
+
+## Contributing
+
+See [pkit_example/](pkit_example/) for working examples and [CLAUDE.md](claude/CLAUDE.md) for development guidelines.
+
+## License
+
+CC-BY-4.0
