@@ -324,17 +324,17 @@ class Printer(object):
         Returns:
             Formatted message string with header and timestamp
         """
+        if self.timer.initiated:
+            timer_part = f'[{self.timer.timestamp()} ({self.timer.state()})] '
+        else:
+            timer_part = ''
         header = self.header
         if subheader:
             header = safe_join(header, *subheader, sep='.')
-        if self.timer.initiated:
-            timer_part = f' [{self.timer.timestamp()} ({self.timer.state()})]: '
-        else:
-            timer_part = ': '
-        msg = safe_join(header, timer_part, message, sep='')
+        msg = safe_join(timer_part, header, ': ', message, sep='')
         if key_values:
             for k,v in key_values.items():
-                msg += f'\n- {k}: {v}'
+                msg += f'\n\t- {k}: {v}'
         return msg
 
 
