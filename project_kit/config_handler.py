@@ -19,8 +19,14 @@ from pathlib import Path
 from typing import Any, Optional, Union, Self, Sequence
 from types import ModuleType
 from dataclasses import dataclass, field
-from project_kit import constants as c
-from project_kit import utils
+from project_kit.constants import (
+    PKIT_CONFIG_FILENAME, YAML_EXT_REGX, PKIT_NOT_FOUND,
+    ENVIRONMENT_KEYED_IDENTIFIER, project_kit_env_key, PY_EXT_REGX
+)
+from project_kit.utils import (
+    safe_join, dir_search, read_yaml, replace_dictionary_values,
+    keyed_replace_dictionary_values, import_module_from_path
+)
 
 
 #
@@ -84,7 +90,7 @@ def pkit_path(
                 ext = ext or ''
         path = re.sub(r'\.', '/', path)
         parts = [project_root] + list(subfolders) + [path]
-    return utils.safe_join(*parts, ext=ext)
+    return safe_join(*parts, ext=ext)
 
 
 def get_project_root(project_root: Optional[str] = None) -> str:
@@ -99,7 +105,7 @@ def get_project_root(project_root: Optional[str] = None) -> str:
         Path to project root directory
     """
     if project_root is None:
-        project_root = utils.dir_search(c.PKIT_CONFIG_FILENAME)
+        project_root = dir_search(PKIT_CONFIG_FILENAME)
     return project_root
 
 
@@ -139,7 +145,7 @@ class PKitConfig:
             str: project_root/.pkit
         """
         project_root = get_project_root(project_root)
-        return f'{project_root}/{c.PKIT_CONFIG_FILENAME}'
+        return f'{project_root}/{PKIT_CONFIG_FILENAME}'
 
     @classmethod
     def init_for_project(cls, project_root: Optional[str] = None) -> Self:
@@ -154,7 +160,7 @@ class PKitConfig:
         Returns:
             PKitConfig instance with loaded configuration
         """
-        pkit_config = utils.read_yaml(cls.file_path())
+        pkit_config = read_yaml(cls.file_path())
         return PKitConfig(**pkit_config)
 
 
@@ -340,9 +346,9 @@ class ConfigHandler:
                 path = pkit_path(
                     arg,
                     self.project_root,
-                    ext_regex=c.YAML_EXT_REGX,
+                    ext_regex=YAML_EXT_REGX,
                     ext='.yaml')
-                yaml_config = utils.read_yaml(path, safe=True)
+                yaml_config = read_yaml(path, safe=True)
                 self.config.update(yaml_config)
             else:
                 err = (
@@ -371,9 +377,9 @@ class ConfigHandler:
         Returns:
             Processed configuration dictionary with replaced values
         """
-        config = utils.replace_dictionary_values(config, self.config)
-        replacements = {c.ENVIRONMENT_KEYED_IDENTIFIER: self.environment_name}
-        config = utils.keyed_replace_dictionary_values(config, **replacements)
+        config = replace_dictionary_values(config, self.config)
+        replacements = {ENVIRONMENT_KEYED_IDENTIFIER: self.environment_name}
+        config = keyed_replace_dictionary_values(config, **replacements)
         return config
 
     def get(self, key: str, default: Any = None) -> Any:
@@ -394,8 +400,8 @@ class ConfigHandler:
         Returns:
             Configuration value or default
         """
-        value = getattr(self.constants, key, c.PKIT_NOT_FOUND)
-        if value == c.PKIT_NOT_FOUND:
+        value = getattr(self.constants, key, PKIT_NOT_FOUND)
+        if value == PKIT_NOT_FOUND:
             value = self.config.get(key, default)
         if isinstance(value, str) and value.isupper() and (value in self):
             value = self[value]
@@ -439,8 +445,8 @@ class ConfigHandler:
         Raises:
             KeyError: If key not found in configuration or constants
         """
-        value = self.get(key, c.PKIT_NOT_FOUND)
-        if value == c.PKIT_NOT_FOUND:
+        value = self.get(key, PKIT_NOT_FOUND)
+        if value == PKIT_NOT_FOUND:
             raise KeyError(f'{key} not found in config, or constants')
         else:
             return value
@@ -514,19 +520,19 @@ class ConfigHandler:
             self.pkit.config_filename,
             self.project_root,
             self.pkit.config_folder,
-            ext_regex=c.YAML_EXT_REGX,
+            ext_regex=YAML_EXT_REGX,
             ext='.yaml')
-        config = utils.read_yaml(config_path, safe=True)
+        config = read_yaml(config_path, safe=True)
         default_env = config.pop(self.pkit.default_env_key, None)
-        environment_name = os.environ.get(c.project_kit_env_key, default_env)
+        environment_name = os.environ.get(project_kit_env_key, default_env)
         if environment_name:
             env_path = pkit_path(
                 self.project_root,
                 self.pkit.config_folder,
                 environment_name,
-                ext_regex=c.YAML_EXT_REGX,
+                ext_regex=YAML_EXT_REGX,
                 ext='.yaml')
-            config.update(utils.read_yaml(env_path, safe=True))
+            config.update(read_yaml(env_path, safe=True))
         return config, environment_name
 
     def _check_protected_keys(self) -> None:
@@ -598,11 +604,11 @@ class ConfigArgs:
         self.args_config = self.config_handler.process_values(args_config)
         self.property_names = list(self.args_config.keys())
         self.job_path = pkit_path(
-            re.sub(c.YAML_EXT_REGX, '', job or config_path),
+            re.sub(YAML_EXT_REGX, '', job or config_path),
             self.config_handler.project_root,
             self.config_handler.pkit.jobs_folder,
             ext='.py',
-            ext_regex=c.PY_EXT_REGX)
+            ext_regex=PY_EXT_REGX)
         self._set_arg_kwargs()
 
     def import_job_module(self) -> Any:
@@ -617,7 +623,7 @@ class ConfigArgs:
         Returns:
             Imported job module object
         """
-        return utils.import_module_from_path(self.job_path)
+        return import_module_from_path(self.job_path)
 
     def __getattr__(self, key: str) -> Any:
         """Access properties of config_handler and config args as attributes.
@@ -663,9 +669,9 @@ class ConfigArgs:
             self.config_handler.pkit.config_folder,
             self.config_handler.pkit.args_config_folder,
             ext='.yaml',
-            ext_regex=c.YAML_EXT_REGX)
+            ext_regex=YAML_EXT_REGX)
         try:
-            args_config = utils.read_yaml(args_config_path)
+            args_config = read_yaml(args_config_path)
             # pop special values
             job = args_config.pop('job', None)
             config = args_config.pop('config', {})
