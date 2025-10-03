@@ -8,8 +8,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from pathlib import Path
 from pprint import pprint
 import click
-from project_kit import constants as c
-from project_kit import utils
+from project_kit.constants import PKIT_NOT_FOUND, project_kit_env_key, PKIT_CLI_DEFAULT_HEADER
+from project_kit.utils import safe_copy_yaml, safe_join
 from project_kit.config_handler import ConfigArgs, PKitConfig
 from project_kit.printer import Printer
 
@@ -49,12 +49,12 @@ def cli(ctx):
 @click.pass_context
 def init(
         ctx,
-        log_dir: Optional[str] = c.PKIT_NOT_FOUND,
-        package: Optional[str] = c.PKIT_NOT_FOUND,
+        log_dir: Optional[str] = PKIT_NOT_FOUND,
+        package: Optional[str] = PKIT_NOT_FOUND,
         force: bool = False):
     src_pkit_path = Path(__file__).parent.parent / 'dot_pkit'
     dest_pkit_path = f'{Path.cwd()}/.pkit'
-    utils.safe_copy_yaml(
+    safe_copy_yaml(
         src_pkit_path,
         dest_pkit_path,
         log_dir=log_dir,
@@ -97,14 +97,14 @@ def job(
     # 3. set environment (if provided)
     if env:
         printer.message(f"Setting environment: {env}")
-        os.environ[c.project_kit_env_key] = env
+        os.environ[project_kit_env_key] = env
 
     # 4. run jobs
     for job in jobs:
         execute_job(job, user_config=user_config, printer=printer)
 
     # 5. complete
-    printer.stop(f"Jobs ({utils.safe_join(jobs)}) completed successfully!")
+    printer.stop(f"Jobs ({safe_join(jobs)}) completed successfully!")
 
 
 #
@@ -153,7 +153,7 @@ def execute_job(job: str, user_config: Optional[dict] = None, printer: Optional[
 def _pkit_printer(
         *name_parts: str,
         pkit: Optional[PKitConfig] = None,
-        header: str = c.PKIT_CLI_DEFAULT_HEADER) -> Tuple[PKitConfig, Printer]:
+        header: str = PKIT_CLI_DEFAULT_HEADER) -> Tuple[PKitConfig, Printer]:
     """Initialize PKitConfig and Printer instances for CLI operations.
 
     Args:
@@ -171,7 +171,7 @@ def _pkit_printer(
     if pkit is None:
         pkit = PKitConfig.init_for_project()
     if name_parts:
-        name_parts = utils.safe_join(*name_parts, sep='-')
+        name_parts = safe_join(*name_parts, sep='-')
     printer = Printer(log_dir=pkit.log_dir, header=header, log_name_part=name_parts)
     return pkit, printer
 
