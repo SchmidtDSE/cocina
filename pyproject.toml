@@ -5,7 +5,25 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "project_kit"
 version = "0.0.1"
+description = "A collection of tools for building structured Python projects"
 readme = "README.md"
+license = {text = "CC-BY-4.0"}
+authors = [
+  {name = "Your Name", email = "your.email@example.com"}
+]
+classifiers = [
+	"Development Status :: 4 - Beta",
+	"Intended Audience :: Developers",
+	"Programming Language :: Python :: 3",
+	"Programming Language :: Python :: 3.8",
+	"Programming Language :: Python :: 3.9",
+	"Programming Language :: Python :: 3.10",
+	"Programming Language :: Python :: 3.11",
+	"Programming Language :: Python :: 3.12",
+	"Topic :: Software Development :: Libraries",
+	"Topic :: Scientific/Engineering",
+]
+requires-python = ">=3.8"
 dependencies = ["pyyaml", "click>=8.2.1,<9"]
 
 [project.scripts]
@@ -29,3 +47,10 @@ ipykernel = ">=6.30.1,<7"
 jupyterlab = ">=4.4.7,<5"
 numpy = ">=2.3.3,<3"
 pandas = ">=2.3.2,<3"
+
+[tool.pixi.environments]
+default = { features = [] }
+dev = { features = ["dev"] }
+
+[tool.pixi.feature.dev.dependencies]
+twine = "*"
