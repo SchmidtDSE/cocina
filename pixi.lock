@@ -2099,7 +2099,7 @@ packages:
 - pypi: ./
   name: cocina
   version: 0.0.1
-  sha256: 76f79dc156c302b51836c2b0b0760dc69eddec5cee58941609905d6ad9f70679
+  sha256: eba6b21e05e8066a73ce4c3aaf7ca698bf26d3dc4d66d43795f8b4830817efff
   requires_dist:
   - pyyaml
   - click>=8.2.1,<9

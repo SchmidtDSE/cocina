@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cocina"
-version = "0.0.1"
+version = "0.0.2"
 description = "A collection of tools for building structured Python projects"
 readme = "README.md"
 license = {text = "CC-BY-4.0"}
