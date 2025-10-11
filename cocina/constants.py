@@ -1,8 +1,8 @@
 """
 
-Project Kit Constants
+Cocina Constants
 
-This module contains constant values used throughout the Project Kit package.
+This module contains constant values used throughout the Cocina package.
 
 License: CC-BY-4.0
 
@@ -11,12 +11,12 @@ License: CC-BY-4.0
 # CONSTANTS
 #
 
-# pkit:core
-PKIT_CONFIG_FILENAME: str = '.pkit'
-PKIT_NOT_FOUND: str = '__PKIT_OBJECT_NOT_FOUND'
+# cocina:core
+cocina_CONFIG_FILENAME: str = '.cocina'
+cocina_NOT_FOUND: str = '__cocina_OBJECT_NOT_FOUND'
 
-# pkit:cli
-PKIT_CLI_DEFAULT_HEADER: str = 'pkit_job'
+# cocina:cli
+cocina_CLI_DEFAULT_HEADER: str = 'cocina_job'
 
 # REGEX
 PY_EXT_REGX: str = r'\.py$'
@@ -30,7 +30,7 @@ ICON_SUCCESS = "✅"
 
 # config/args keyed-identifiers
 # - auto-update config/args with env
-ENVIRONMENT_KEYED_IDENTIFIER: str = r'\[\[PKIT:ENV\]\]'
+ENVIRONMENT_KEYED_IDENTIFIER: str = r'\[\[cocina:ENV\]\]'
 
 # environment variables
 # - env-key to store "env-name" to manage environment-specific configs/args

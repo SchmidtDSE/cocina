@@ -1,6 +1,6 @@
-# Project Kit
-
-Project Kit (PKIT) is a collection of tools for building structured Python projects. It provides sophisticated configuration management, job execution capabilities, and a professional CLI interface.
+# Cocina (WIP: status-broken moving to "cocina")
+ 
+Cocina (cocina) is a collection of tools for building structured Python projects. It provides sophisticated configuration management, job execution capabilities, and a professional CLI interface.
 
 ## Core Components
 
@@ -16,7 +16,7 @@ Project Kit (PKIT) is a collection of tools for building structured Python proje
     - [Overview](#overview)
     - [Example](#example)
     - [Advanced Features](#advanced-features)
-- [PKit Configuration](#pkit-configuration)
+- [cocina Configuration](#cocina-configuration)
 - [Configuration Files](#configuration-files)
   - [ConfigHandler](#confighandler)
   - [ConfigArgs](#configargs)
@@ -49,17 +49,17 @@ project_kit = { path = "path/to/project_kit", editable = true }
 **INITIALIZE**:
 
 ```bash
-pixi run pkit init --log_dir logs --package your_package_name
+pixi run cocina init --log_dir logs --package your_package_name
 ```
 
-> See [PKit Configuration](#pkit-configuration) for detailed initialization options.
+> See [cocina Configuration](#cocina-configuration) for detailed initialization options.
 
 
 ---
 
 ### Overview
 
-Project Kit separates **configuration** (values that can change) from **constants** (values that never change) and **job arguments** (run-specific parameters).
+Cocina separates **configuration** (values that can change) from **constants** (values that never change) and **job arguments** (run-specific parameters).
 
 #### Key Concepts
 
@@ -73,7 +73,7 @@ Project Kit separates **configuration** (values that can change) from **constant
   - Job configs: `config/args/job_name.yaml`
   - Usage: To run method `method_name`: `method_name(*ca.method_name.args, **ca.method_name.kwargs)`
 
-**Note**: names of configuration and job directories and files can be customized in [.pkit](#pkit-configuration).
+**Note**: names of configuration and job directories and files can be customized in [.cocina](#cocina-configuration).
 
 #### Before and After
 
@@ -91,7 +91,7 @@ if __name__ == "__main__":
     main()
 ```
 
-**With Project Kit:**
+**With Cocina:**
 ```python
 def run(config_args):
     data = load_data(*config_args.load_data.args, **config_args.load_data.kwargs)
@@ -99,7 +99,7 @@ def run(config_args):
     save_data(data, *config_args.save_data.args, **config_args.save_data.kwargs)
 ```
 
-All parameters are now externalized to YAML configuration files, making scripts reusable and maintainable. CLI mangagement/arg-parsing is handled through the pkit [CLI](#cli)
+All parameters are now externalized to YAML configuration files, making scripts reusable and maintainable. CLI mangagement/arg-parsing is handled through the cocina [CLI](#cli)
 
 ### Example
 
@@ -146,10 +146,10 @@ def run(config_args, printer=None):
 **Running Jobs:**
 ```bash
 # Default environment
-pixi run pkit job data_pipeline
+pixi run cocina job data_pipeline
 
 # Production environment
-pixi run pkit job data_pipeline --env prod
+pixi run cocina job data_pipeline --env prod
 ```
 
 #### RUN AND MAIN METHODS
@@ -175,25 +175,25 @@ jobs.job_group_1.job_a1.step_1(*ca.step_1.args, **ca.step_1.kwargs)
 
 ---
 
-## PKit Configuration
+## cocina Configuration
 
-The `.pkit` file contains project settings and must be in your project root. It defines:
+The `.cocina` file contains project settings and must be in your project root. It defines:
 - Configuration file locations and naming conventions
 - Project root directory location
 - Environment variable names
 
-**Required:** Every project must have a `.pkit` file at the root.
+**Required:** Every project must have a `.cocina` file at the root.
 
 **Options:**
 - `--log_dir`: Enable automatic log file creation
 - `--package`: Specify main package for constants loading
-- `--force`: Overwrite existing `.pkit` file
+- `--force`: Overwrite existing `.cocina` file
 
 ---
 
 ## Configuration Files
 
-Project Kit uses YAML files in the `config/` directory:
+Cocina uses YAML files in the `config/` directory:
 
 ```
 config/
@@ -216,7 +216,7 @@ config/
 Manages constants and main configuration with environment support.
 
 ```python
-from project_kit.config_handler import ConfigHandler
+from cocina.config_handler import ConfigHandler
 
 ch = ConfigHandler()
 print(ch.DATABASE_URL)  # From config.yaml
@@ -234,7 +234,7 @@ print(ch.MAX_SCALE)     # From constants.py (protected)
 Loads job-specific configurations with structured argument access.
 
 ```python
-from project_kit.config_handler import ConfigArgs
+from cocina.config_handler import ConfigArgs
 
 ca = ConfigArgs('data_pipeline')
 # Access method arguments
@@ -260,23 +260,23 @@ ca.extract_data.kwargs   # {"limit": 1000, "debug": False}
 ### Initialize Project
 
 ```bash
-pixi run pkit init --log_dir logs --package your_package
+pixi run cocina init --log_dir logs --package your_package
 ```
 
 ### Run Jobs
 
 ```bash
 # Run a single job
-pixi run pkit job data_pipeline
+pixi run cocina job data_pipeline
 
 # Run with specific environment
-pixi run pkit job data_pipeline --env prod
+pixi run cocina job data_pipeline --env prod
 
 # Run multiple jobs
-pixi run pkit job job1 job2 job3
+pixi run cocina job job1 job2 job3
 
 # Dry run (validate without executing)
-pixi run pkit job data_pipeline --dry_run
+pixi run cocina job data_pipeline --dry_run
 ```
 
 **Options:**
@@ -293,7 +293,7 @@ pixi run pkit job data_pipeline --dry_run
 Professional output with timestamps, headers, and optional file logging.
 
 ```python
-from project_kit.printer import Printer
+from cocina.printer import Printer
 
 printer = Printer(header='MyApp')
 printer.start('Processing begins')
@@ -305,7 +305,7 @@ printer.stop('Complete')
 Simple timing functionality with duration tracking.
 
 ```python
-from project_kit.utils import Timer
+from cocina.utils import Timer
 
 timer = Timer()
 timer.start()           # Start timing

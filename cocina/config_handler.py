@@ -1,6 +1,6 @@
 """
 
-Project Kit Config Handler
+Cocina Config Handler
 
 This module provides the ConfigHandler class for managing project configuration
 using YAML files, constants, and environment variables.
@@ -19,11 +19,11 @@ from pathlib import Path
 from typing import Any, Optional, Union, Self, Sequence
 from types import ModuleType
 from dataclasses import dataclass, field
-from project_kit.constants import (
-    PKIT_CONFIG_FILENAME, YAML_EXT_REGX, PKIT_NOT_FOUND,
+from cocina.constants import (
+    cocina_CONFIG_FILENAME, YAML_EXT_REGX, cocina_NOT_FOUND,
     ENVIRONMENT_KEYED_IDENTIFIER, project_kit_env_key, PY_EXT_REGX
 )
-from project_kit.utils import (
+from cocina.utils import (
     safe_join, dir_search, read_yaml, replace_dictionary_values,
     keyed_replace_dictionary_values, import_module_from_path
 )
@@ -32,7 +32,7 @@ from project_kit.utils import (
 #
 # HELPERS
 #
-def pkit_path(
+def cocina_path(
         path: str,
         project_root: str,
         *subfolders: Union[str, int, float],
@@ -43,7 +43,7 @@ def pkit_path(
     Manages standard paths for a "project_kit" project. Here is an example:
 
         ```python
-        path = pkit_path(
+        path = cocina_path(
             'a.b.c',
             '/path/to/my/project',
             'sub1',
@@ -96,7 +96,7 @@ def pkit_path(
 def get_project_root(project_root: Optional[str] = None) -> str:
     """Get project root directory.
 
-    Searches for .pkit file in parent directories if project_root not provided.
+    Searches for .cocina file in parent directories if project_root not provided.
 
     Args:
         project_root: Optional explicit project root path
@@ -105,7 +105,7 @@ def get_project_root(project_root: Optional[str] = None) -> str:
         Path to project root directory
     """
     if project_root is None:
-        project_root = dir_search(PKIT_CONFIG_FILENAME)
+        project_root = dir_search(cocina_CONFIG_FILENAME)
     return project_root
 
 
@@ -113,16 +113,16 @@ def get_project_root(project_root: Optional[str] = None) -> str:
 # DATA CLASSES
 #
 @dataclass
-class PKitConfig:
-    """Dataclass for managing .pkit configuration.
+class cocinaConfig:
+    """Dataclass for managing .cocina configuration.
 
-    This dataclass holds all configuration settings loaded from the .pkit file
-    that define how Project Kit should locate and load configuration files.
+    This dataclass holds all configuration settings loaded from the .cocina file
+    that define how Cocina should locate and load configuration files.
 
     Usage:
         ```python
-        pkit = PKitConfig.init_for_project()
-        config_path = pkit.config_folder + '/' + pkit.config_filename
+        cocina = cocinaConfig.init_for_project()
+        config_path = cocina.config_folder + '/' + cocina.config_filename
         ```
     """
     config_folder: str
@@ -136,32 +136,32 @@ class PKitConfig:
 
     @classmethod
     def file_path(cls, project_root: Optional[str] = None) -> Self:
-        """gets path for .pkit file
+        """gets path for .cocina file
 
         Args:
             project_root: Optional explicit project root path
 
         Returns:
-            str: project_root/.pkit
+            str: project_root/.cocina
         """
         project_root = get_project_root(project_root)
-        return f'{project_root}/{PKIT_CONFIG_FILENAME}'
+        return f'{project_root}/{cocina_CONFIG_FILENAME}'
 
     @classmethod
     def init_for_project(cls, project_root: Optional[str] = None) -> Self:
-        """Create new PKitConfig instance for project.
+        """Create new cocinaConfig instance for project.
 
-        Loads configuration from .pkit file in project root directory.
-        If project_root is None, searches parent directories for .pkit file.
+        Loads configuration from .cocina file in project root directory.
+        If project_root is None, searches parent directories for .cocina file.
 
         Args:
             project_root: Optional explicit project root path
 
         Returns:
-            PKitConfig instance with loaded configuration
+            cocinaConfig instance with loaded configuration
         """
-        pkit_config = read_yaml(cls.file_path())
-        return PKitConfig(**pkit_config)
+        cocina_config = read_yaml(cls.file_path())
+        return cocinaConfig(**cocina_config)
 
 
 @dataclass
@@ -234,18 +234,18 @@ class ConfigHandler:
     """Handle project configuration using YAML files, constants, and environment variables.
 
     ConfigHandler provides a unified interface for managing configuration data across
-    your project. It searches for a `.pkit` configuration file in parent directories,
+    your project. It searches for a `.cocina` configuration file in parent directories,
     loads YAML configuration files, and optionally imports project constants.
 
     Requirements:
-        Your project must have a `.pkit` file in the project root directory. This file
+        Your project must have a `.cocina` file in the project root directory. This file
         contains project_kit settings and is used to locate the project root and 
         configure how configuration files are loaded.
 
     Special Value Processing:
         ConfigHandler supports special string patterns in configuration values:
         - `<<KEY_NAME>>`: Replaced with the value of KEY_NAME from the configuration
-        - `[[PKIT:ENV]]`: Replaced with the current environment name or stripped if not set
+        - `[[cocina:ENV]]`: Replaced with the current environment name or stripped if not set
 
         These patterns enable dynamic configuration values and environment-specific settings.
 
@@ -277,8 +277,8 @@ class ConfigHandler:
         ```
 
     Configuration Loading:
-        1. Searches parent directories for `.pkit` file (project root)
-        2. Reads `.pkit` configuration settings
+        1. Searches parent directories for `.cocina` file (project root)
+        2. Reads `.cocina` configuration settings
         3. Loads main config file (default: config/config.yaml)
         4. Optionally loads environment-specific config based on PROJECT_KIT.ENV_NAME
         5. Imports constants module if module_path provided
@@ -291,14 +291,14 @@ class ConfigHandler:
     Args:
         package_locator: Optional string used to help determine the location of a
             "constants.py" file:
-            - None: use pkit.constants_package_name
+            - None: use cocina.constants_package_name
             - String containing "/":  path to a file withing the same package
               as the constants.py file
             - String NOT containing "/": the name of the package containg the
               constants.py file
 
     Raises:
-        ValueError: If configuration attempts to overwrite constants or .pkit not found
+        ValueError: If configuration attempts to overwrite constants or .cocina not found
         KeyError: If attempting to access non-existent configuration key without default
     """
     def __init__(self, package_locator: Optional[str] = None, constants: Optional[ModuleType] = None) -> None:
@@ -307,7 +307,7 @@ class ConfigHandler:
         Args:
             package_locator: Optional string used to help determine the location of a
                 "constants.py" file:
-                - None: use pkit.constants_package_name
+                - None: use cocina.constants_package_name
                 - String containing "/":  path to a file withing the same package
                   as the constants.py file
                 - String NOT containing "/": the name of the package containg the
@@ -316,7 +316,7 @@ class ConfigHandler:
                 and ch.constants = <constants>
         """
         self.project_root = get_project_root()
-        self.pkit = PKitConfig.init_for_project(self.project_root)
+        self.cocina = cocinaConfig.init_for_project(self.project_root)
         self.constants = constants or self._import_constants(package_locator)
         self.config, self.environment_name = self._config_and_environment()
         self.config = self.process_values(self.config)
@@ -343,7 +343,7 @@ class ConfigHandler:
             if isinstance(arg, dict):
                 self.config.update(arg)
             elif isinstance(arg, str):
-                path = pkit_path(
+                path = cocina_path(
                     arg,
                     self.project_root,
                     ext_regex=YAML_EXT_REGX,
@@ -369,7 +369,7 @@ class ConfigHandler:
         This method uses the `keyed_replace_dictionary_values` utility to perform
         dynamic string replacement with special patterns:
         - `<<A_KEY_THAT_EXISTS>>`: Replaced with the value of A_KEY_THAT_EXISTS from the configuration
-        - `[[PKIT:ENV]]`: Replaced with the current environment name or stripped if not set
+        - `[[cocina:ENV]]`: Replaced with the current environment name or stripped if not set
 
         Args:
             config: Configuration dictionary to process
@@ -400,8 +400,8 @@ class ConfigHandler:
         Returns:
             Configuration value or default
         """
-        value = getattr(self.constants, key, PKIT_NOT_FOUND)
-        if value == PKIT_NOT_FOUND:
+        value = getattr(self.constants, key, cocina_NOT_FOUND)
+        if value == cocina_NOT_FOUND:
             value = self.config.get(key, default)
         if isinstance(value, str) and value.isupper() and (value in self):
             value = self[value]
@@ -445,8 +445,8 @@ class ConfigHandler:
         Raises:
             KeyError: If key not found in configuration or constants
         """
-        value = self.get(key, PKIT_NOT_FOUND)
-        if value == PKIT_NOT_FOUND:
+        value = self.get(key, cocina_NOT_FOUND)
+        if value == cocina_NOT_FOUND:
             raise KeyError(f'{key} not found in config, or constants')
         else:
             return value
@@ -485,7 +485,7 @@ class ConfigHandler:
         Args:
             package_locator: Optional string used to help determine the location of a
                 "constants.py" file:
-                - None: use pkit.constants_package_name
+                - None: use cocina.constants_package_name
                 - String containing "/":  path to a file withing the same package
                   as the constants.py file
                 - String NOT containing "/": the name of the package containg the
@@ -495,7 +495,7 @@ class ConfigHandler:
             Imported constants module or None
         """
         if package_locator is None:
-            package_name = self.pkit.constants_package_name
+            package_name = self.cocina.constants_package_name
         elif ('/' in package_locator):
             locator_path = str(Path(package_locator).resolve())
             package_name = re.sub(f'{self.project_root}/', '', locator_path).split('/', 1)[0]
@@ -503,7 +503,7 @@ class ConfigHandler:
             package_name = package_locator
         constants_module = None
         if package_name:
-            dot_path = f'{package_name}.{self.pkit.constants_module_name}'
+            dot_path = f'{package_name}.{self.cocina.constants_module_name}'
             try:
                 constants_module = importlib.import_module(dot_path)
             except ImportError as e:
@@ -516,19 +516,19 @@ class ConfigHandler:
         Returns:
             Tuple containing config dictionary and environment name
         """
-        config_path = pkit_path(
-            self.pkit.config_filename,
+        config_path = cocina_path(
+            self.cocina.config_filename,
             self.project_root,
-            self.pkit.config_folder,
+            self.cocina.config_folder,
             ext_regex=YAML_EXT_REGX,
             ext='.yaml')
         config = read_yaml(config_path, safe=True)
-        default_env = config.pop(self.pkit.default_env_key, None)
+        default_env = config.pop(self.cocina.default_env_key, None)
         environment_name = os.environ.get(project_kit_env_key, default_env)
         if environment_name:
-            env_path = pkit_path(
+            env_path = cocina_path(
                 self.project_root,
-                self.pkit.config_folder,
+                self.cocina.config_folder,
                 environment_name,
                 ext_regex=YAML_EXT_REGX,
                 ext='.yaml')
@@ -603,10 +603,10 @@ class ConfigArgs:
         self.config_handler.update(config)
         self.args_config = self.config_handler.process_values(args_config)
         self.property_names = list(self.args_config.keys())
-        self.job_path = pkit_path(
+        self.job_path = cocina_path(
             re.sub(YAML_EXT_REGX, '', job or config_path),
             self.config_handler.project_root,
-            self.config_handler.pkit.jobs_folder,
+            self.config_handler.cocina.jobs_folder,
             ext='.py',
             ext_regex=PY_EXT_REGX)
         self._set_arg_kwargs()
@@ -663,11 +663,11 @@ class ConfigArgs:
         """
         FIX  ME
         """
-        args_config_path = pkit_path(
+        args_config_path = cocina_path(
             config_path,
             self.config_handler.project_root,
-            self.config_handler.pkit.config_folder,
-            self.config_handler.pkit.args_config_folder,
+            self.config_handler.cocina.config_folder,
+            self.config_handler.cocina.args_config_folder,
             ext='.yaml',
             ext_regex=YAML_EXT_REGX)
         try:

@@ -1,15 +1,15 @@
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools", "build"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "project_kit"
+name = "cocina"
 version = "0.0.1"
 description = "A collection of tools for building structured Python projects"
 readme = "README.md"
 license = {text = "CC-BY-4.0"}
 authors = [
-  {name = "Your Name", email = "your.email@example.com"}
+  {name = "Brookie Guzder-Williams", email = "bguzder-williams@berkeley.edu"}
 ]
 classifiers = [
 	"Development Status :: 4 - Beta",
@@ -24,14 +24,14 @@ classifiers = [
 	"Topic :: Scientific/Engineering",
 ]
 requires-python = ">=3.8"
-dependencies = ["pyyaml", "click>=8.2.1,<9"]
+dependencies = ["pyyaml", "click>=8.2.1,<9", "build"]
 
 [project.scripts]
-pkit = "project_kit:cli.cli"
+cocina = "cocina:cli.cli"
 
 [tool.setuptools]
 packages = [
-	"project_kit",
+	"cocina",
 ]
 
 [tool.pixi.project]
@@ -39,7 +39,7 @@ channels = ["conda-forge"]
 platforms = ["linux-64", "linux-aarch64", "osx-64", "osx-arm64"]
 
 [tool.pixi.pypi-dependencies]
-project_kit = { path = ".", editable = true }
+cocina = { path = ".", editable = true }
 
 [tool.pixi.dependencies]
 pycodestyle = ">=2.14.0,<3"

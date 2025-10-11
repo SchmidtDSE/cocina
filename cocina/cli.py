@@ -8,10 +8,10 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from pathlib import Path
 from pprint import pprint
 import click
-from project_kit.constants import PKIT_NOT_FOUND, project_kit_env_key, PKIT_CLI_DEFAULT_HEADER
-from project_kit.utils import safe_copy_yaml, safe_join
-from project_kit.config_handler import ConfigArgs, PKitConfig
-from project_kit.printer import Printer
+from cocina.constants import cocina_NOT_FOUND, project_kit_env_key, cocina_CLI_DEFAULT_HEADER
+from cocina.utils import safe_copy_yaml, safe_join
+from cocina.config_handler import ConfigArgs, cocinaConfig
+from cocina.printer import Printer
 
 
 #
@@ -33,7 +33,7 @@ def cli(ctx):
 #
 # INIT
 #
-@cli.command(name='init', help='initialize project with .pkit file')
+@cli.command(name='init', help='initialize project with .cocina file')
 @click.option('--log_dir', '-l',
     type=str,
     required=False,
@@ -49,20 +49,20 @@ def cli(ctx):
 @click.pass_context
 def init(
         ctx,
-        log_dir: Optional[str] = PKIT_NOT_FOUND,
-        package: Optional[str] = PKIT_NOT_FOUND,
+        log_dir: Optional[str] = cocina_NOT_FOUND,
+        package: Optional[str] = cocina_NOT_FOUND,
         force: bool = False):
-    src_pkit_path = Path(__file__).parent.parent / 'dot_pkit'
-    dest_pkit_path = f'{Path.cwd()}/.pkit'
+    src_cocina_path = Path(__file__).parent.parent / 'dot_cocina'
+    dest_cocina_path = f'{Path.cwd()}/.cocina'
     safe_copy_yaml(
-        src_pkit_path,
-        dest_pkit_path,
+        src_cocina_path,
+        dest_cocina_path,
         log_dir=log_dir,
         constants_package_name=package,
         force=force)
-    print(f'pkit: project initialized ({dest_pkit_path})')
-    pkit = PKitConfig.init_for_project()
-    pprint(pkit)
+    print(f'cocina: project initialized ({dest_cocina_path})')
+    cocina = cocinaConfig.init_for_project()
+    pprint(cocina)
 
 
 #
@@ -90,8 +90,8 @@ def job(
     # 1. processs args
     jobs, user_config = _process_jobs_and_user_config(jobs, dry_run)
 
-    # 2. pkit-setup
-    pkit, printer = _pkit_printer(*jobs)
+    # 2. cocina-setup
+    cocina, printer = _cocina_printer(*jobs)
     printer.start(vspace=False)
 
     # 3. set environment (if provided)
@@ -112,7 +112,7 @@ def job(
 #
 def execute_job(job: str, user_config: Optional[dict] = None, printer: Optional[Printer] = None) -> None:
     if printer is None:
-        pkit, printer = _pkit_printer(job)
+        cocina, printer = _cocina_printer(job)
         printer.start()
     error = False
     printer.set_header(job)
@@ -150,30 +150,30 @@ def execute_job(job: str, user_config: Optional[dict] = None, printer: Optional[
 #
 # INTERNAL
 #
-def _pkit_printer(
+def _cocina_printer(
         *name_parts: str,
-        pkit: Optional[PKitConfig] = None,
-        header: str = PKIT_CLI_DEFAULT_HEADER) -> Tuple[PKitConfig, Printer]:
-    """Initialize PKitConfig and Printer instances for CLI operations.
+        cocina: Optional[cocinaConfig] = None,
+        header: str = cocina_CLI_DEFAULT_HEADER) -> Tuple[cocinaConfig, Printer]:
+    """Initialize cocinaConfig and Printer instances for CLI operations.
 
     Args:
         *name_parts: Variable length string arguments to construct log name
-        pkit: Existing PKitConfig instance (creates new if None)
+        cocina: Existing cocinaConfig instance (creates new if None)
         header: Header string for printer output
 
     Returns:
-        Tuple containing PKitConfig and Printer instances
+        Tuple containing cocinaConfig and Printer instances
 
     Usage:
-        >>> pkit, printer = _pkit_printer('job1', 'task1')
-        >>> pkit, printer = _pkit_printer(header='Custom Header')
+        >>> cocina, printer = _cocina_printer('job1', 'task1')
+        >>> cocina, printer = _cocina_printer(header='Custom Header')
     """
-    if pkit is None:
-        pkit = PKitConfig.init_for_project()
+    if cocina is None:
+        cocina = cocinaConfig.init_for_project()
     if name_parts:
         name_parts = safe_join(*name_parts, sep='-')
-    printer = Printer(log_dir=pkit.log_dir, header=header, log_name_part=name_parts)
-    return pkit, printer
+    printer = Printer(log_dir=cocina.log_dir, header=header, log_name_part=name_parts)
+    return cocina, printer
 
 
 def _process_jobs_and_user_config(jobs: List[str], dry_run: bool) -> Tuple[List[str], Dict[str, Any]]:

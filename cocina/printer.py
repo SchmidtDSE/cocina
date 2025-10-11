@@ -1,6 +1,6 @@
 """
 
-Project Kit Printer Module
+Cocina Printer Module
 
 This module provides the Printer class for handling structured output and logging
 with timestamps, dividers, and file output capabilities.
@@ -15,9 +15,9 @@ import os
 import re
 from pathlib import Path
 from typing import Any, Literal, List, Optional, Tuple, Union
-from project_kit.utils import Timer, safe_join, write
-from project_kit.constants import (
-    ICON_START, ICON_SUCCESS, ICON_FAILED, PKIT_CLI_DEFAULT_HEADER,
+from cocina.utils import Timer, safe_join, write
+from cocina.constants import (
+    ICON_START, ICON_SUCCESS, ICON_FAILED, cocina_CLI_DEFAULT_HEADER,
     project_kit_log_path_key
 )
 
@@ -235,7 +235,7 @@ class Printer(object):
             >>> printer.message("my message")  # job.header [timestamp]: my message
         """
         if header is None:
-            header = PKIT_CLI_DEFAULT_HEADER
+            header = cocina_CLI_DEFAULT_HEADER
         if isinstance(header, (str, list)):
             if isinstance(header, list):
                 header = safe_join(*header, sep='.')

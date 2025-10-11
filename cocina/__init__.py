@@ -1,5 +1,5 @@
 """
-Project Kit Package
+Cocina Package
 
 A comprehensive collection of tools for building Python projects with
 sophisticated configuration management and job execution capabilities.

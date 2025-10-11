@@ -1,46 +1,46 @@
 # -------------------------------------------------------------------------------------------
-# .pkit Configuration File:
+# .cocina Configuration File:
 # 
-# This file contains project_kit settings and conventions. PKit use this file to:
+# This file contains project_kit settings and conventions. cocina use this file to:
 #
 # 1. set conventions: determine the location and names of key (job and config) files and
 #    environmental variables
 # 2. determine the project-root.
 #
 #
-# IMPORTANT: All project-kit projects must include a copy of this file (renamed to .pkit)
+# IMPORTANT: All project-kit projects must include a copy of this file (renamed to .cocina)
 #            located at the project root.
 #
 # Generate this file by running:
 #
 # ```bash
-# pixi run pkit init (--log_dir <relative-path-to-log-dir>) \
+# pixi run cocina init (--log_dir <relative-path-to-log-dir>) \
 #                    (--package <main-package-name>) \
 #                    (--force) \
 # ```
 #
-# (or copy this file to your project root and rename it to ".pkit".
+# (or copy this file to your project root and rename it to ".cocina".
 # -------------------------------------------------------------------------------------------
 
 # -------------------------------------------------------------------------------------------
-# .pkit Settings:
+# .cocina Settings:
 # -------------------------------------------------------------------------------------------
 
 # 1. Directory for log files
 # - relative to project root
 # - if null print-only (TODO)
-# - can be set with `--log_dir` flag when running `pkit init`
+# - can be set with `--log_dir` flag when running `cocina init`
 log_dir: null
 
 # 2. Package containing "constants_module"
 # - ConfigHandler attempts to auto-detect if null and
 #   not provided through 'package_name' arg
-# - can be set with `--package` flag when running `pkit init`
+# - can be set with `--package` flag when running `cocina init`
 constants_package_name: null
 
 
 # -------------------------------------------------------------------------------------------
-# .pkit Conventions:
+# .cocina Conventions:
 #
 # These settings are the project-kit conventions determining names of files and folders, as
 # well as environmental variables. It is recommended that you do not edit this section unless

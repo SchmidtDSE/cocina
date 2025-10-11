@@ -1,8 +1,8 @@
 """
 
-Project Kit Utilities
+Cocina Utilities
 
-This module contains utility functions and classes for the Project Kit package,
+This module contains utility functions and classes for the Cocina package,
 including file system operations, YAML handling, and timing functionality.
 
 License: CC-BY-4.0
@@ -21,7 +21,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, List, Optional, Union
 from types import ModuleType
-from project_kit.constants import PKIT_NOT_FOUND, KEY_STR_REGEX
+from cocina.constants import cocina_NOT_FOUND, KEY_STR_REGEX
 
 
 #
@@ -100,7 +100,7 @@ def safe_copy_yaml(
             processed_str = ''
             for line in file:
                 for k, v in replacements.items():
-                    if (v != PKIT_NOT_FOUND) and re.search(f'^{k}', line):
+                    if (v != cocina_NOT_FOUND) and re.search(f'^{k}', line):
                         line = f'{k}: {json.dumps(v)}'
                     else:
                         line = line.strip()
