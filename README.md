@@ -1,6 +1,6 @@
 # Cocina
  
-Cocina (cocina) is a collection of tools for building structured Python projects. It provides sophisticated configuration management, job execution capabilities, and a professional CLI interface.
+Cocina is a collection of tools for building structured Python projects. It provides sophisticated configuration management, job execution capabilities, and a professional CLI interface.
 
 ## Core Components
 
