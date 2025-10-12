@@ -1,4 +1,4 @@
-# Cocina (WIP: status-broken moving to "cocina")
+# Cocina
  
 Cocina (cocina) is a collection of tools for building structured Python projects. It provides sophisticated configuration management, job execution capabilities, and a professional CLI interface.
 
@@ -37,13 +37,13 @@ Cocina (cocina) is a collection of tools for building structured Python projects
 **INSTALL**:
 
 ```bash
-git clone https://github.com/SchmidtDSE/project_kit.git
+git clone https://github.com/SchmidtDSE/cocina.git
 ```
 
 Add to your `pyproject.toml`:
 ```toml
 [tool.pixi.pypi-dependencies]
-project_kit = { path = "path/to/project_kit", editable = true }
+cocina = { path = "path/to/cocina", editable = true }
 ```
 
 **INITIALIZE**:

@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from pathlib import Path
 from pprint import pprint
 import click
-from cocina.constants import cocina_NOT_FOUND, project_kit_env_key, cocina_CLI_DEFAULT_HEADER
+from cocina.constants import cocina_NOT_FOUND, cocina_env_key, cocina_CLI_DEFAULT_HEADER
 from cocina.utils import safe_copy_yaml, safe_join
 from cocina.config_handler import ConfigArgs, cocinaConfig
 from cocina.printer import Printer
@@ -97,7 +97,7 @@ def job(
     # 3. set environment (if provided)
     if env:
         printer.message(f"Setting environment: {env}")
-        os.environ[project_kit_env_key] = env
+        os.environ[cocina_env_key] = env
 
     # 4. run jobs
     for job in jobs:

@@ -21,7 +21,7 @@ from types import ModuleType
 from dataclasses import dataclass, field
 from cocina.constants import (
     cocina_CONFIG_FILENAME, YAML_EXT_REGX, cocina_NOT_FOUND,
-    ENVIRONMENT_KEYED_IDENTIFIER, project_kit_env_key, PY_EXT_REGX
+    ENVIRONMENT_KEYED_IDENTIFIER, cocina_env_key, PY_EXT_REGX
 )
 from cocina.utils import (
     safe_join, dir_search, read_yaml, replace_dictionary_values,
@@ -40,7 +40,7 @@ def cocina_path(
         ext_regex: Optional[str] = None) -> str:
     """Get path of configuration file with flexible path resolution.
 
-    Manages standard paths for a "project_kit" project. Here is an example:
+    Manages standard paths for a "cocina" project. Here is an example:
 
         ```python
         path = cocina_path(
@@ -239,7 +239,7 @@ class ConfigHandler:
 
     Requirements:
         Your project must have a `.cocina` file in the project root directory. This file
-        contains project_kit settings and is used to locate the project root and 
+        contains cocina settings and is used to locate the project root and 
         configure how configuration files are loaded.
 
     Special Value Processing:
@@ -280,7 +280,7 @@ class ConfigHandler:
         1. Searches parent directories for `.cocina` file (project root)
         2. Reads `.cocina` configuration settings
         3. Loads main config file (default: config/config.yaml)
-        4. Optionally loads environment-specific config based on PROJECT_KIT.ENV_NAME
+        4. Optionally loads environment-specific config based on cocina.ENV_NAME
         5. Imports constants module if module_path provided
 
     Priority Order (highest to lowest):
@@ -524,7 +524,7 @@ class ConfigHandler:
             ext='.yaml')
         config = read_yaml(config_path, safe=True)
         default_env = config.pop(self.cocina.default_env_key, None)
-        environment_name = os.environ.get(project_kit_env_key, default_env)
+        environment_name = os.environ.get(cocina_env_key, default_env)
         if environment_name:
             env_path = cocina_path(
                 self.project_root,

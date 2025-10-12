@@ -18,7 +18,7 @@ from typing import Any, Literal, List, Optional, Tuple, Union
 from cocina.utils import Timer, safe_join, write
 from cocina.constants import (
     ICON_START, ICON_SUCCESS, ICON_FAILED, cocina_CLI_DEFAULT_HEADER,
-    project_kit_log_path_key
+    cocina_log_path_key
 )
 
 
@@ -285,7 +285,7 @@ class Printer(object):
         """
         _append = False
         if not self.log_path:
-            env_log_path = os.environ.get(project_kit_log_path_key)
+            env_log_path = os.environ.get(cocina_log_path_key)
             if env_log_path:
                 self.log_path = env_log_path
                 _append = True
@@ -309,7 +309,7 @@ class Printer(object):
                 )
                 raise ValueError(err)
             else:
-                os.environ[project_kit_log_path_key] = self.log_path
+                os.environ[cocina_log_path_key] = self.log_path
                 Path(self.log_path).parent.mkdir(parents=True, exist_ok=True)
 
 

@@ -1,14 +1,14 @@
 # -------------------------------------------------------------------------------------------
 # .cocina Configuration File:
 # 
-# This file contains project_kit settings and conventions. cocina use this file to:
+# This file contains cocina settings and conventions. cocina use this file to:
 #
 # 1. set conventions: determine the location and names of key (job and config) files and
 #    environmental variables
 # 2. determine the project-root.
 #
 #
-# IMPORTANT: All project-kit projects must include a copy of this file (renamed to .cocina)
+# IMPORTANT: All cocina projects must include a copy of this file (renamed to .cocina)
 #            located at the project root.
 #
 # Generate this file by running:
@@ -42,7 +42,7 @@ constants_package_name: null
 # -------------------------------------------------------------------------------------------
 # .cocina Conventions:
 #
-# These settings are the project-kit conventions determining names of files and folders, as
+# These settings are the cocina conventions determining names of files and folders, as
 # well as environmental variables. It is recommended that you do not edit this section unless
 # these conventions leads to a conflict due to integration into an existing project, or use
 # with a different tool.

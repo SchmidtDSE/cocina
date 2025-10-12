@@ -34,7 +34,7 @@ ENVIRONMENT_KEYED_IDENTIFIER: str = r'\[\[cocina:ENV\]\]'
 
 # environment variables
 # - env-key to store "env-name" to manage environment-specific configs/args
-project_kit_env_key = "PROJECT_KIT.ENV_KEY"
+cocina_env_key = "cocina.ENV_KEY"
 # - env-key to store path to current log file
-project_kit_log_path_key = "PROJECT_KIT.LOG_PATH_KEY"
+cocina_log_path_key = "cocina.LOG_PATH_KEY"
 
