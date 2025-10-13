@@ -340,7 +340,3 @@ pixi run jupyter lab
 - **[CLI Reference](/wiki/cli)** - Command-line interface
 - **[Examples](/wiki/examples)** - Detailed usage examples
 - **[Advanced Topics](/wiki/advanced)** - Complex patterns and extensions
-
-## License
-
-CC-BY-4.0

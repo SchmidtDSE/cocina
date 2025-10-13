@@ -5,7 +5,7 @@ Cocina Printer Module
 This module provides the Printer class for handling structured output and logging
 with timestamps, dividers, and file output capabilities.
 
-License: CC-BY-4.0
+License: BSd 3-clause
 
 """
 #

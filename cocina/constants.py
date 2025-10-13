@@ -4,7 +4,7 @@ Cocina Constants
 
 This module contains constant values used throughout the Cocina package.
 
-License: CC-BY-4.0
+License: BSd 3-clause
 
 """
 #
