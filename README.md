@@ -13,6 +13,8 @@ Cocina is a collection of tools for building structured Python projects. It prov
 ## Table of Contents
 
 - [Getting Started](#getting-started)
+    - [Install](#install)
+    - [Initialize](#initialize)
     - [Overview](#overview)
     - [Example](#example)
     - [Advanced Features](#advanced-features)
@@ -34,19 +36,25 @@ Cocina is a collection of tools for building structured Python projects. It prov
 
 ## Getting Started
 
-**INSTALL**:
+---
+
+### Install
+
+**FROM PYPI**
 
 ```bash
-git clone https://github.com/SchmidtDSE/cocina.git
+pip install cocina
 ```
 
-Add to your `pyproject.toml`:
-```toml
-[tool.pixi.pypi-dependencies]
-cocina = { path = "path/to/cocina", editable = true }
+---
+
+**FROM CONDA**
+
+```bash
+ conda install -c conda-forge cocina
 ```
 
-**INITIALIZE**:
+### Initialize
 
 ```bash
 pixi run cocina init --log_dir logs --package your_package_name
