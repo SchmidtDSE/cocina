@@ -2090,12 +2090,12 @@ packages:
   timestamp: 1732193485989
 - pypi: ./
   name: cocina
-  version: 0.0.4
-  sha256: 052c785b15ce0cbc9c7f53e5b0cb621c8e5a429b9ac0bded7ed59a4a7f222a48
+  version: 0.0.5
+  sha256: 270473bd8efcde559bb6df017d4f564ee5d7874ce8147032cdac9672329b01e4
   requires_dist:
   - pyyaml
   - click>=8.2.1,<9
-  requires_python: '>=3.8'
+  requires_python: '>=3.11'
   editable: true
 - conda: https://conda.anaconda.org/conda-forge/noarch/comm-0.2.3-pyhe01879c_0.conda
   sha256: 576a44729314ad9e4e5ebe055fbf48beb8116b60e58f9070278985b2b634f212
