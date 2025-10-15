@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cocina"
-version = "0.0.4"
+version = "0.0.5"
 description = "A collection of tools for building structured Python projects"
 readme = "README.md"
 license = {text = "BSd 3-clause"}
@@ -23,7 +23,7 @@ classifiers = [
 	"Topic :: Software Development :: Libraries",
 	"Topic :: Scientific/Engineering",
 ]
-requires-python = ">=3.8"
+requires-python = ">=3.11"
 dependencies = ["pyyaml", "click>=8.2.1,<9"]
 
 [project.scripts]
