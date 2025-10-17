@@ -10,7 +10,7 @@ from pprint import pprint
 import click
 from cocina.constants import cocina_NOT_FOUND, cocina_env_key, cocina_CLI_DEFAULT_HEADER
 from cocina.utils import safe_copy_yaml, safe_join
-from cocina.config_handler import ConfigArgs, cocinaConfig
+from cocina.config_handler import ConfigArgs, CocinaConfig
 from cocina.printer import Printer
 
 
@@ -61,7 +61,7 @@ def init(
         constants_package_name=package,
         force=force)
     print(f'cocina: project initialized ({dest_cocina_path})')
-    cocina = cocinaConfig.init_for_project()
+    cocina = CocinaConfig.init_for_project()
     pprint(cocina)
 
 
@@ -92,7 +92,6 @@ def job(
 
     # 2. cocina-setup
     cocina, printer = _cocina_printer(*jobs)
-    printer.start(vspace=False)
 
     # 3. set environment (if provided)
     if env:
@@ -100,8 +99,8 @@ def job(
         os.environ[cocina_env_key] = env
 
     # 4. run jobs
-    for job in jobs:
-        execute_job(job, user_config=user_config, printer=printer)
+    for job_name in jobs:
+        execute_job(job_name, user_config=user_config, printer=printer)
 
     # 5. complete
     printer.stop(f"Jobs ({safe_join(jobs)}) completed successfully!")
@@ -110,14 +109,12 @@ def job(
 #
 # HELPERS
 #
-def execute_job(job: str, user_config: Optional[dict] = None, printer: Optional[Printer] = None) -> None:
+def execute_job(job_name: str, user_config: Optional[dict] = None, printer: Optional[Printer] = None) -> None:
     if printer is None:
-        cocina, printer = _cocina_printer(job)
-        printer.start()
+        cocina, printer = _cocina_printer(job_name)
     error = False
-    printer.set_header(job)
     try:
-        config_args = ConfigArgs(job, user_config=user_config)
+        config_args = ConfigArgs(job_name, user_config=user_config)
         printer.vspace()
         job_module = config_args.import_job_module()
         try:
@@ -152,27 +149,26 @@ def execute_job(job: str, user_config: Optional[dict] = None, printer: Optional[
 #
 def _cocina_printer(
         *name_parts: str,
-        cocina: Optional[cocinaConfig] = None,
-        header: str = cocina_CLI_DEFAULT_HEADER) -> Tuple[cocinaConfig, Printer]:
-    """Initialize cocinaConfig and Printer instances for CLI operations.
+        cocina: Optional[CocinaConfig] = None) -> Tuple[CocinaConfig, Printer]:
+    """Initialize CocinaConfig and Printer instances for CLI operations.
 
     Args:
         *name_parts: Variable length string arguments to construct log name
-        cocina: Existing cocinaConfig instance (creates new if None)
+        cocina: Existing CocinaConfig instance (creates new if None)
         header: Header string for printer output
 
     Returns:
-        Tuple containing cocinaConfig and Printer instances
+        Tuple containing CocinaConfig and Printer instances
 
     Usage:
         >>> cocina, printer = _cocina_printer('job1', 'task1')
         >>> cocina, printer = _cocina_printer(header='Custom Header')
     """
     if cocina is None:
-        cocina = cocinaConfig.init_for_project()
+        cocina = CocinaConfig.init_for_project()
     if name_parts:
         name_parts = safe_join(*name_parts, sep='-')
-    printer = Printer(log_dir=cocina.log_dir, header=header, log_name_part=name_parts)
+    printer = Printer(log_dir=cocina.log_dir, log_name_part=name_parts)
     return cocina, printer
 
 
