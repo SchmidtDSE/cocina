@@ -231,12 +231,21 @@ def inspect_tree(max_depth: int = 4, sep: str = '.', as_list: bool = False) -> U
 
 
 def caller_name(max_depth=4, exclude_str='cocina') -> Union[str, None]:
-    """
-    TODO: UPDATE DOC STRING
-    # inspect.stack() returns a list of frame records for the call stack.
-    # stack()[0] is the current frame (the hello method).
-    # stack()[1] is the frame of the caller.
-    # stack()[2] is the frame of the caller (where instance was created).
+    """Get the name of the calling module by traversing the call stack.
+
+    Traverses the call stack to find the first module name that doesn't
+    contain the exclude string. Useful for dynamic header generation.
+
+    Args:
+        max_depth: Maximum depth to search in call stack (default: 4)
+        exclude_str: String to exclude from module names (default: 'cocina')
+
+    Returns:
+        Module name of the caller, or None if not found
+
+    Usage:
+        >>> caller_name()  # Returns module name of calling function
+        >>> caller_name(max_depth=2, exclude_str='test')
     """
     for i in range(max_depth):
         name = inspect.getmodule(inspect.stack()[i].frame).__name__
@@ -366,7 +375,28 @@ def safe_join(
 # DECORATORS
 #
 def singleton(cls):
-    """TODO: UPDATE WITH USAGE -A class decorator that implements the singleton pattern."""
+    """Class decorator that implements the singleton pattern.
+
+    Ensures only one instance of the decorated class can exist. Subsequent
+    calls to the class constructor return the same instance.
+
+    Args:
+        cls: The class to make singleton
+
+    Returns:
+        Function that returns singleton instance
+
+    Usage:
+        >>> @singleton
+        >>> class MyClass:
+        ...     def __init__(self, value):
+        ...         self.value = value
+        >>>
+        >>> obj1 = MyClass(1)
+        >>> obj2 = MyClass(2)
+        >>> obj1 is obj2  # True - same instance
+        >>> obj1.value    # 1 - original value preserved
+    """
     instances = {}
     @functools.wraps(cls)
     def get_instance(*args, **kwargs):
