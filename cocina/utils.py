@@ -13,6 +13,7 @@ License: BSd 3-clause
 #
 import sys
 import importlib.util
+import functools
 import re
 import inspect
 import yaml
@@ -228,6 +229,21 @@ def inspect_tree(max_depth: int = 4, sep: str = '.', as_list: bool = False) -> U
     else:
         return safe_join(*names, sep=sep)
 
+
+def caller_name(max_depth=4, exclude_str='cocina') -> Union[str, None]:
+    """
+    TODO: UPDATE DOC STRING
+    # inspect.stack() returns a list of frame records for the call stack.
+    # stack()[0] is the current frame (the hello method).
+    # stack()[1] is the frame of the caller.
+    # stack()[2] is the frame of the caller (where instance was created).
+    """
+    for i in range(max_depth):
+        name = inspect.getmodule(inspect.stack()[i].frame).__name__
+        if (name != 'module.name') and (exclude_str not in name):
+            return name
+
+
 #
 # CORE
 #
@@ -345,6 +361,20 @@ def safe_join(
         result = clean_path_string(result)
     return result
 
+
+#
+# DECORATORS
+#
+def singleton(cls):
+    """TODO: UPDATE WITH USAGE -A class decorator that implements the singleton pattern."""
+    instances = {}
+    @functools.wraps(cls)
+    def get_instance(*args, **kwargs):
+        if cls not in instances:
+            instances[cls] = cls(*args, **kwargs)
+        return instances[cls]
+    
+    return get_instance
 
 
 #
