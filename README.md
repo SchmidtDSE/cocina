@@ -298,13 +298,12 @@ pixi run cocina job data_pipeline --dry_run
 ## Tools
 
 ### Printer
-Professional output with timestamps, headers, and optional file logging.
+Professional output with timestamps, headers, and optional file logging. Printer is a singleton class that automatically initializes when first accessed.
 
 ```python
 from cocina.printer import Printer
 
-printer = Printer(header='MyApp')
-printer.start('Processing begins')
+printer = Printer(log_dir='logs', basename='MyApp')
 printer.message('Status update', count=42, status='ok')
 printer.stop('Complete')
 ```
