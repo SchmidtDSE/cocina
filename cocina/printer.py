@@ -11,11 +11,10 @@ License: BSd 3-clause
 #
 # IMPORTS
 #
-import os
 import re
 from pathlib import Path
 from typing import Any, Literal, List, Optional, Tuple, Union
-from cocina.utils import Timer, safe_join, write
+from cocina.utils import Timer, safe_join, write, singleton, caller_name
 from cocina.constants import (
     ICON_START, ICON_SUCCESS, ICON_FAILED, cocina_CLI_DEFAULT_HEADER,
     cocina_log_path_key
@@ -32,33 +31,40 @@ DEFAULT_ERROR_MSG: str = 'Error'
 #
 # PUBLIC
 #
+@singleton
 class Printer(object):
     """Structured output and logging class with timestamps and file output.
 
     Handles formatted printing with headers, timestamps, dividers, and optional
     file logging. Supports timing operations and structured message formatting.
     """
-
     def __init__(self,
-                 log_dir: Optional[str] = None,
-                 log_name_part: Optional[str] = None,
-                 log_path: Optional[str] = None,
-                 timer: Optional[Timer] = None,
-                 header: Optional[Union[str, List[str]]] = None,
-                 div_len: int = 100,
-                 icons: bool = True,
-                 silent: bool = False) -> None:
+            log_dir: Optional[str] = None,
+            log_name_part: Optional[str] = None,
+            log_path: Optional[str] = None,
+            timer: Optional[Timer] = None,
+            basename: Optional[str] = None,
+            div_len: int = 100,
+            icons: bool = True,
+            silent: bool = False,
+            start_message: Optional[str] = 'start',
+            start_div: Union[str, Tuple[str, str]] = ('=','-'),
+            start_vspace: int = 2,
+            start_icon: Optional[str] = ICON_START) -> None:
         """Initialize Printer with configuration options.
 
         Args:
-            header: String or list of strings for the message header prefix
+            basename: string to prefix header in messages
             log_dir: Directory path for log file output (optional)
             log_name_part: Part of the log filename to use
             timer: Timer instance for timestamps (creates new if None)
             div_len: Length of divider lines (default: 100)
             icons: Whether to display icons in messages (default: True)
             silent: Whether to suppress console output (default: False)
-
+            start_message: Optional start message to display (default: 'start')
+            start_div: Divider characters as string or tuple (default: ('=','-'))
+            start_vspace: Vertical spacing before message (default: 2)
+            start_icon: icon for start message (None will not include icon)
         Raises:
             ValueError: If header is not a string or list of strings
 
@@ -73,31 +79,12 @@ class Printer(object):
         self.div_len = div_len
         self.icons = icons
         self.silent = silent
-        self.set_header(header)
-
-    def start(self,
-              message: str = 'start',
-              div: Union[str, Tuple[str, str]] = ('=','-'),
-              vspace: int = 2,
-              **kwargs: Any) -> None:
-        """Start the printer session with timing and optional log file creation.
-
-        Args:
-            message: Start message to display (default: 'start')
-            div: Divider characters as string or tuple (default: ('=','-'))
-            vspace: Vertical spacing before message (default: 2)
-            **kwargs: Additional keyword arguments passed to message formatting
-
-        Raises:
-            ValueError: If log file already exists at the target path
-
-        Usage:
-            >>> printer.start('Processing begins')
-            >>> printer.start('Init', div='*', vspace=1)
-        """
+        self.basename = basename
         self.timer.start()
         self._process_log_path()
-        self.message(message, div=div, vspace=vspace, icon=ICON_START)
+        if start_message:
+            self.message(start_message, div=start_div, vspace=start_vspace, icon=start_icon)
+        self._initialized = True
 
     def stop(self,
             message: str = 'complete',
@@ -137,7 +124,7 @@ class Printer(object):
 
     def message(self,
             msg: str,
-            *subheader: str,
+            header: Optional[Union[str, Literal[False]]] = None,
             div: Optional[Union[str, Tuple[str, str]]] = None,
             vspace: Union[bool, int] = False,
             icon: Optional[str] = None,
@@ -149,11 +136,16 @@ class Printer(object):
 
         Args:
             msg: Main message content
-            *subheader: Additional header components to append
+            header:
+                - if None: prefix message with name of module where .message is being called
+                - if False: do not prefix message
+                - else: prefix message with <header>
             div: Divider characters as string or tuple (optional)
             vspace: Vertical spacing as boolean or number of lines
             icon: Optional icon string to display with message
             error: Error indicator - False for none, string for custom message, Exception for error object
+            callout: if callout, wrap message in lines and 2 vertical spaces
+            callout_div: character to create wrapping lines
             **kwargs: Additional key-value pairs to append to message
 
         Usage:
@@ -177,12 +169,54 @@ class Printer(object):
             icon = ICON_FAILED
         if icon and self.icons:
             msg = f'{icon} {msg}'
-        self._print(self._format_msg(msg, subheader, kwargs))
+        self._print(self._format_msg(msg, header, kwargs))
         if div:
             self.line(div2)
         if callout:
             self.line(callout_div)
             self.vspace(2)
+
+    def callout(self,
+            msg: str,
+            header: Optional[Union[str, Literal[False]]] = None,
+            div: Optional[Union[str, Tuple[str, str]]] = None,
+            vspace: Union[bool, int] = False,
+            icon: Optional[str] = None,
+            error: Union[bool, str, Exception] = False,
+            callout_div: str = '*',
+            **kwargs: Any) -> None:
+        """Convenience wrapper for displaying "callout" messages.
+
+        Makes it easy to see messages in logs by using lines & spacing.
+        Mainly for debuging and development
+
+        Args:
+            msg: Main message content
+            header:
+                - if None: prefix message with name of module where .message is being called
+                - if False: do not prefix message
+                - else: prefix message with <header>
+            div: Divider characters as string or tuple (optional)
+            vspace: Vertical spacing as boolean or number of lines
+            icon: Optional icon string to display with message
+            error: Error indicator - False for none, string for custom message, Exception for error object
+            **kwargs: Additional key-value pairs to append to message
+
+        Usage:
+            >>> printer.message('Status update')
+            >>> printer.message('Error', 'processing', div='*', vspace=2)
+            >>> printer.message('Info', count=42, status='ok')
+        """
+        self.message(self,
+            msg,
+            header=header,
+            div=div,
+            vspace=vspace,
+            icon=icon,
+            error=error,
+            callout=True,
+            callout_div=callout_div,
+            **kwargs) 
 
     def error(self,
             error: Union[bool, str, Exception],
@@ -222,26 +256,6 @@ class Printer(object):
             icon=icon,
             **kwargs)
 
-    def set_header(self, header: Optional[Union[str, List[str]]] = None) -> None:
-        """Set header for messages.
-
-        Args:
-            header: String or list of strings for message prefix
-
-        Usage:
-            >>> printer.set_header("job header")
-            >>> printer.message("my message")  # job header [timestamp]: my message
-            >>> printer.set_header(["job", "header"])
-            >>> printer.message("my message")  # job.header [timestamp]: my message
-        """
-        if header is None:
-            header = cocina_CLI_DEFAULT_HEADER
-        if isinstance(header, (str, list)):
-            if isinstance(header, list):
-                header = safe_join(*header, sep='.')
-            self.header = re.sub(r'/$', '', header)
-        else:
-            raise ValueError('header must be str or list[str]', header)
 
     def vspace(self, vspace: Union[Literal[True], int] = True) -> None:
         """Print vertical spacing (blank lines).
@@ -284,11 +298,6 @@ class Printer(object):
             Internal method called during initialization to configure logging.
         """
         _append = False
-        if not self.log_path:
-            env_log_path = os.environ.get(cocina_log_path_key)
-            if env_log_path:
-                self.log_path = env_log_path
-                _append = True
         if self.log_path:
             _p =  Path(self.log_path)
             self.log_name = _p.name
@@ -302,23 +311,17 @@ class Printer(object):
             self.log_path = None
             self.log_name_part = None
         if self.log_path:
-            if (not _append) and Path(self.log_path).is_file():
-                err = (
-                    'log already exists at log_path'
-                    f'({self.log_path})'
-                )
-                raise ValueError(err)
-            else:
-                os.environ[cocina_log_path_key] = self.log_path
-                Path(self.log_path).parent.mkdir(parents=True, exist_ok=True)
+            Path(self.log_path).parent.mkdir(parents=True, exist_ok=True)
 
-
-    def _format_msg(self, message: str, subheader: Tuple[str, ...], key_values: Optional[dict] = None) -> str:
+    def _format_msg(self, message: str, header: Optional[Union[str, Literal[False]]], key_values: Optional[dict] = None) -> str:
         """Format message with header, timestamp, and key-value pairs.
 
         Args:
             message: Main message content
-            subheader: Tuple of additional header components
+            header:
+                - if None: prefix message with name of module where .message is being called
+                - if False: do not prefix message
+                - else: prefix message with <header>
             key_values: Optional dictionary of key-value pairs to append
 
         Returns:
@@ -328,10 +331,12 @@ class Printer(object):
             timer_part = f'[{self.timer.timestamp()} ({self.timer.state()})] '
         else:
             timer_part = ''
-        header = self.header
-        if subheader:
-            header = safe_join(header, *subheader, sep='.')
-        msg = safe_join(timer_part, header, ': ', message, sep='')
+        if header is None:
+            header = caller_name()
+        header = safe_join(self.basename, header, sep='.')
+        if header:
+            header = f'{header}: '
+        msg = safe_join(timer_part, header, message, sep='')
         if key_values:
             for k,v in key_values.items():
                 msg += f'\n\t- {k}: {v}'
