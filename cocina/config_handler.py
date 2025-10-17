@@ -113,7 +113,7 @@ def get_project_root(project_root: Optional[str] = None) -> str:
 # DATA CLASSES
 #
 @dataclass
-class cocinaConfig:
+class CocinaConfig:
     """Dataclass for managing .cocina configuration.
 
     This dataclass holds all configuration settings loaded from the .cocina file
@@ -121,7 +121,7 @@ class cocinaConfig:
 
     Usage:
         ```python
-        cocina = cocinaConfig.init_for_project()
+        cocina = CocinaConfig.init_for_project()
         config_path = cocina.config_folder + '/' + cocina.config_filename
         ```
     """
@@ -149,7 +149,7 @@ class cocinaConfig:
 
     @classmethod
     def init_for_project(cls, project_root: Optional[str] = None) -> Self:
-        """Create new cocinaConfig instance for project.
+        """Create new CocinaConfig instance for project.
 
         Loads configuration from .cocina file in project root directory.
         If project_root is None, searches parent directories for .cocina file.
@@ -158,10 +158,10 @@ class cocinaConfig:
             project_root: Optional explicit project root path
 
         Returns:
-            cocinaConfig instance with loaded configuration
+            CocinaConfig instance with loaded configuration
         """
         cocina_config = read_yaml(cls.file_path())
-        return cocinaConfig(**cocina_config)
+        return CocinaConfig(**cocina_config)
 
 
 @dataclass
@@ -316,7 +316,7 @@ class ConfigHandler:
                 and ch.constants = <constants>
         """
         self.project_root = get_project_root()
-        self.cocina = cocinaConfig.init_for_project(self.project_root)
+        self.cocina = CocinaConfig.init_for_project(self.project_root)
         self.constants = constants or self._import_constants(package_locator)
         self.config, self.environment_name = self._config_and_environment()
         self.config = self.process_values(self.config)
