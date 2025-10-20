@@ -25,7 +25,7 @@ from cocina.constants import (
 # CONSTANTS
 #
 LOG_FILE_EXT: str = 'log'
-DEFAULT_ERROR_MSG: str = 'Error'
+ERROR_HEADER: str = 'Error'
 
 
 #
@@ -164,9 +164,13 @@ class Printer(object):
                 div1, div2 = div
             self.line(div1)
         if error:
-            if error is not False:
-                msg = f'{msg}: {error}'
+            error_msg = f'{ERROR_HEADER}:'
+            if msg:
+                error_msg = f'{error_msg} {msg}'
+            if error:
+                error_msg = f'{error_msg} [{error}]'
             icon = ICON_FAILED
+            msg = error_msg
         if icon and self.icons:
             msg = f'{icon} {msg}'
         self._print(self._format_msg(msg, header, kwargs))
@@ -246,8 +250,6 @@ class Printer(object):
             printer.error(ConnectionError("Timeout"), div="=")
             ```
         """
-        if msg is None:
-            msg = DEFAULT_ERROR_MSG
         self.message(
             msg=msg,
             error=error,
@@ -255,7 +257,6 @@ class Printer(object):
             vspace=vspace,
             icon=icon,
             **kwargs)
-
 
     def vspace(self, vspace: Union[Literal[True], int] = True) -> None:
         """Print vertical spacing (blank lines).
