@@ -283,7 +283,8 @@ class Printer(object):
             >>> printer.line('=', 50)   # Print line of equals, 50 chars
             >>> printer.line('*')       # Print line of asterisks
         """
-        self._print(marker * (length or self.div_len))
+        if marker is not None:
+            self._print(marker * (length or self.div_len))
 
     #
     # INTERNAL
