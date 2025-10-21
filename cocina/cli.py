@@ -17,6 +17,7 @@ from cocina.printer import Printer
 #
 # CONSTANTS
 #
+_MISSING_PRINTER_PART: str = "argument 'printer'"
 _MISSING_RUN_PART: str = "attribute 'run'"
 _MISSING_MAIN_PART: str = "attribute 'main'"
 
@@ -119,8 +120,11 @@ def execute_job(job_name: str, user_config: Optional[dict] = None, printer: Opti
         job_module = config_args.import_job_module()
         try:
             job_module.run(config_args, printer=printer)
-        except TypeError:
-            job_module.run(config_args)
+        except TypeError as e:
+            if _MISSING_PRINTER_PART in str(e):
+                job_module.run(config_args)
+            else:
+                raise e
         except AttributeError as e:
             if _MISSING_RUN_PART in str(e):
                 job_module.main()

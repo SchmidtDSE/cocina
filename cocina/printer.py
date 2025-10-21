@@ -184,9 +184,6 @@ class Printer(object):
             msg: str,
             header: Optional[Union[str, Literal[False]]] = None,
             div: Optional[Union[str, Tuple[str, str]]] = None,
-            vspace: Union[bool, int] = False,
-            icon: Optional[str] = None,
-            error: Union[bool, str, Exception] = False,
             callout_div: str = '*',
             **kwargs: Any) -> None:
         """Convenience wrapper for displaying "callout" messages.
@@ -201,9 +198,6 @@ class Printer(object):
                 - if False: do not prefix message
                 - else: prefix message with <header>
             div: Divider characters as string or tuple (optional)
-            vspace: Vertical spacing as boolean or number of lines
-            icon: Optional icon string to display with message
-            error: Error indicator - False for none, string for custom message, Exception for error object
             **kwargs: Additional key-value pairs to append to message
 
         Usage:
@@ -215,12 +209,9 @@ class Printer(object):
             msg,
             header=header,
             div=div,
-            vspace=vspace,
-            icon=icon,
-            error=error,
             callout=True,
             callout_div=callout_div,
-            **kwargs) 
+            **kwargs)
 
     def error(self,
             error: Union[bool, str, Exception],
