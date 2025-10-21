@@ -30,7 +30,7 @@ ICON_SUCCESS = "✅"
 
 # config/args keyed-identifiers
 # - auto-update config/args with env
-ENVIRONMENT_KEYED_IDENTIFIER: str = r'\[\[cocina:ENV\]\]'
+ENVIRONMENT_KEYED_IDENTIFIER: str = r'\[\[COCINA:ENV\]\]'
 
 # environment variables
 # - env-key to store "env-name" to manage environment-specific configs/args

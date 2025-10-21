@@ -245,7 +245,7 @@ class ConfigHandler:
     Special Value Processing:
         ConfigHandler supports special string patterns in configuration values:
         - `<<KEY_NAME>>`: Replaced with the value of KEY_NAME from the configuration
-        - `[[cocina:ENV]]`: Replaced with the current environment name or stripped if not set
+        - `[[COCINA:ENV]]`: Replaced with the current environment name or stripped if not set
 
         These patterns enable dynamic configuration values and environment-specific settings.
 
@@ -369,7 +369,7 @@ class ConfigHandler:
         This method uses the `keyed_replace_dictionary_values` utility to perform
         dynamic string replacement with special patterns:
         - `<<A_KEY_THAT_EXISTS>>`: Replaced with the value of A_KEY_THAT_EXISTS from the configuration
-        - `[[cocina:ENV]]`: Replaced with the current environment name or stripped if not set
+        - `[[COCINA:ENV]]`: Replaced with the current environment name or stripped if not set
 
         Args:
             config: Configuration dictionary to process
