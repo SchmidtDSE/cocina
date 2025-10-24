@@ -205,7 +205,7 @@ class Printer(object):
             >>> printer.message('Error', 'processing', div='*', vspace=2)
             >>> printer.message('Info', count=42, status='ok')
         """
-        self.message(self,
+        self.message(
             msg,
             header=header,
             div=div,
