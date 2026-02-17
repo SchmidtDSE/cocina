@@ -22,7 +22,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, List, Optional, Union
 from types import ModuleType
-from cocina.constants import cocina_NOT_FOUND, KEY_STR_REGEX
+from cocina.constants import COCINA_NOT_FOUND, KEY_STR_REGEX
 
 
 #
@@ -101,7 +101,7 @@ def safe_copy_yaml(
             processed_str = ''
             for line in file:
                 for k, v in replacements.items():
-                    if (v != cocina_NOT_FOUND) and re.search(f'^{k}', line):
+                    if (v != COCINA_NOT_FOUND) and re.search(f'^{k}', line):
                         line = f'{k}: {json.dumps(v)}'
                     else:
                         line = line.strip()
@@ -172,12 +172,14 @@ def nb_objects(path) -> int:
 def dir_search(
         *search_names: str,
         max_depth: int = MAX_DIR_SEARCH_DEPTH,
+        directory: Optional[str] = None,
         default: Optional[str] = None) -> str:
     """Search parent directories for files matching search names.
 
     Args:
         *search_names: File names to search for
         max_depth: Maximum directory depth to search (default: MAX_DIR_SEARCH_DEPTH)
+        directory: The directory to begin the search (default: CWD)
         default: Default return value if files not found (default: None)
 
     Returns:
@@ -186,8 +188,10 @@ def dir_search(
     Raises:
         ValueError: If files not found and no default provided
     """
-    cwd = Path.cwd()
-    directory = cwd
+    if directory is None:
+        directory = Path.cwd()
+    else:
+        directory = Path(directory)
     for _ in range(max_depth):
         file_names = [str(n.name) for n in directory.iterdir()]
         if bool(set(file_names) & set(search_names)):

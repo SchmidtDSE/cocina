@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from pathlib import Path
 from pprint import pprint
 import click
-from cocina.constants import cocina_NOT_FOUND, cocina_env_key, cocina_CLI_DEFAULT_HEADER
+from cocina.constants import COCINA_NOT_FOUND, cocina_env_key, COCINA_CLI_DEFAULT_HEADER
 from cocina.utils import safe_copy_yaml, safe_join
 from cocina.config_handler import ConfigArgs, CocinaConfig
 from cocina.printer import Printer
@@ -50,8 +50,8 @@ def cli(ctx):
 @click.pass_context
 def init(
         ctx,
-        log_dir: Optional[str] = cocina_NOT_FOUND,
-        package: Optional[str] = cocina_NOT_FOUND,
+        log_dir: Optional[str] = COCINA_NOT_FOUND,
+        package: Optional[str] = COCINA_NOT_FOUND,
         force: bool = False):
     src_cocina_path = Path(__file__).parent.parent / 'dot_cocina'
     dest_cocina_path = f'{Path.cwd()}/.cocina'
@@ -114,6 +114,7 @@ def execute_job(job_name: str, user_config: Optional[dict] = None, printer: Opti
     if printer is None:
         cocina, printer = _cocina_printer(job_name)
     error = False
+
     try:
         config_args = ConfigArgs(job_name, user_config=user_config)
         printer.message(f'Run Job: {job_name}', vspace=1)
@@ -172,7 +173,10 @@ def _cocina_printer(
         cocina = CocinaConfig.init_for_project()
     if name_parts:
         name_parts = safe_join(*name_parts, sep='-')
-    printer = Printer(log_dir=cocina.log_dir, log_name_part=name_parts)
+    printer = Printer(
+        log_dir=cocina.log_dir,
+        log_name_part=name_parts,
+        start_message='start')
     return cocina, printer
 
 

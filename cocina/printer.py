@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Literal, List, Optional, Tuple, Union
 from cocina.utils import Timer, safe_join, write, singleton, caller_name
 from cocina.constants import (
-    ICON_START, ICON_SUCCESS, ICON_FAILED, cocina_CLI_DEFAULT_HEADER,
+    ICON_START, ICON_SUCCESS, ICON_FAILED, COCINA_CLI_DEFAULT_HEADER,
     cocina_log_path_key
 )
 
@@ -47,7 +47,7 @@ class Printer(object):
             div_len: int = 100,
             icons: bool = True,
             silent: bool = False,
-            start_message: Optional[str] = 'start',
+            start_message: Optional[str] = None,
             start_div: Union[str, Tuple[str, str]] = ('=','-'),
             start_vspace: int = 2,
             start_icon: Optional[str] = ICON_START) -> None:

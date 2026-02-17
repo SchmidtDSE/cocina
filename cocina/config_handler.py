@@ -20,11 +20,11 @@ from typing import Any, Optional, Union, Self, Sequence
 from types import ModuleType
 from dataclasses import dataclass, field
 from cocina.constants import (
-    cocina_CONFIG_FILENAME, YAML_EXT_REGX, cocina_NOT_FOUND,
+    COCINA_CONFIG_FILENAME, YAML_EXT_REGX, COCINA_NOT_FOUND,
     ENVIRONMENT_KEYED_IDENTIFIER, cocina_env_key, PY_EXT_REGX
 )
 from cocina.utils import (
-    safe_join, dir_search, read_yaml, replace_dictionary_values,
+    singleton, safe_join, dir_search, read_yaml, replace_dictionary_values,
     keyed_replace_dictionary_values, import_module_from_path
 )
 
@@ -93,19 +93,26 @@ def cocina_path(
     return safe_join(*parts, ext=ext)
 
 
-def get_project_root(project_root: Optional[str] = None) -> str:
+def get_project_root(
+        project_root: Optional[str] = None,
+        search_directory: Optional[str] = None) -> str:
     """Get project root directory.
 
     Searches for .cocina file in parent directories if project_root not provided.
 
     Args:
         project_root: Optional explicit project root path
-
+        search_directory: Optional directory (or file path) to begin search at
+                          otherwise use CWD
     Returns:
         Path to project root directory
     """
     if project_root is None:
-        project_root = dir_search(cocina_CONFIG_FILENAME)
+        if search_directory:
+            search_directory = Path(search_directory)
+            if search_directory.is_file():
+                search_directory = search_directory.parent
+        project_root = dir_search(COCINA_CONFIG_FILENAME, directory=search_directory)
     return project_root
 
 
@@ -145,7 +152,7 @@ class CocinaConfig:
             str: project_root/.cocina
         """
         project_root = get_project_root(project_root)
-        return f'{project_root}/{cocina_CONFIG_FILENAME}'
+        return f'{project_root}/{COCINA_CONFIG_FILENAME}'
 
     @classmethod
     def init_for_project(cls, project_root: Optional[str] = None) -> Self:
@@ -160,7 +167,7 @@ class CocinaConfig:
         Returns:
             CocinaConfig instance with loaded configuration
         """
-        cocina_config = read_yaml(cls.file_path())
+        cocina_config = read_yaml(cls.file_path(project_root=project_root))
         return CocinaConfig(**cocina_config)
 
 
@@ -230,6 +237,7 @@ class ArgsKwargs:
 #
 # CLASSES
 #
+@singleton
 class ConfigHandler:
     """Handle project configuration using YAML files, constants, and environment variables.
 
@@ -301,10 +309,14 @@ class ConfigHandler:
         ValueError: If configuration attempts to overwrite constants or .cocina not found
         KeyError: If attempting to access non-existent configuration key without default
     """
-    def __init__(self, package_locator: Optional[str] = None, constants: Optional[ModuleType] = None) -> None:
+    def __init__(self,
+            search_directory: Optional[str] = None,
+            package_locator: Optional[str] = None,
+            constants: Optional[ModuleType] = None) -> None:
         """Initialize ConfigHandler.
         
         Args:
+            search_directory: Optional search_directory for finding .cocina config file
             package_locator: Optional string used to help determine the location of a
                 "constants.py" file:
                 - None: use cocina.constants_package_name
@@ -315,7 +327,7 @@ class ConfigHandler:
             constants: Optional ModuleType. if provided <package_locator> ignored,
                 and ch.constants = <constants>
         """
-        self.project_root = get_project_root()
+        self.project_root = get_project_root(search_directory=search_directory)
         self.cocina = CocinaConfig.init_for_project(self.project_root)
         self.constants = constants or self._import_constants(package_locator)
         self.config, self.environment_name = self._config_and_environment()
@@ -400,8 +412,8 @@ class ConfigHandler:
         Returns:
             Configuration value or default
         """
-        value = getattr(self.constants, key, cocina_NOT_FOUND)
-        if value == cocina_NOT_FOUND:
+        value = getattr(self.constants, key, COCINA_NOT_FOUND)
+        if value == COCINA_NOT_FOUND:
             value = self.config.get(key, default)
         if isinstance(value, str) and value.isupper() and (value in self):
             value = self[value]
@@ -445,8 +457,8 @@ class ConfigHandler:
         Raises:
             KeyError: If key not found in configuration or constants
         """
-        value = self.get(key, cocina_NOT_FOUND)
-        if value == cocina_NOT_FOUND:
+        value = self.get(key, COCINA_NOT_FOUND)
+        if value == COCINA_NOT_FOUND:
             raise KeyError(f'{key} not found in config, or constants')
         else:
             return value
@@ -509,6 +521,39 @@ class ConfigHandler:
             except ImportError as e:
                 pass
         return constants_module
+
+
+    # def _import_constants(self,
+    #         package_locator: Optional[str] = None) -> Union[ModuleType, None]:
+    #     """Import constants module if it exists.
+        
+    #     Args:
+    #         package_locator: Optional string used to help determine the location of a
+    #             "constants.py" file:
+    #             - None: use cocina.constants_package_name
+    #             - String containing "/":  path to a file withing the same package
+    #               as the constants.py file
+    #             - String NOT containing "/": the name of the package containg the
+    #               constants.py file
+
+    #     Returns:
+    #         Imported constants module or None
+    #     """
+    #     if package_locator is None:
+    #         package_name = self.cocina.constants_package_name
+    #     elif ('/' in package_locator):
+    #         locator_path = str(Path(package_locator).resolve())
+    #         package_name = re.sub(f'{self.project_root}/', '', locator_path).split('/', 1)[0]
+    #     else:
+    #         package_name = package_locator
+    #     constants_module = None
+    #     if package_name:
+    #         dot_path = f'{package_name}.{self.cocina.constants_module_name}'
+    #         try:
+    #             constants_module = importlib.import_module(dot_path)
+    #         except ImportError as e:
+    #             pass
+    #     return constants_module
 
     def _config_and_environment(self) -> tuple[dict, Optional[str]]:
         """Load configuration, adding environment-specific config if it exists.

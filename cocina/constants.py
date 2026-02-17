@@ -12,11 +12,11 @@ License: BSd 3-clause
 #
 
 # cocina:core
-cocina_CONFIG_FILENAME: str = '.cocina'
-cocina_NOT_FOUND: str = '__cocina_OBJECT_NOT_FOUND'
+COCINA_CONFIG_FILENAME: str = '.cocina'
+COCINA_NOT_FOUND: str = '__cocina_OBJECT_NOT_FOUND'
 
 # cocina:cli
-cocina_CLI_DEFAULT_HEADER: str = 'cocina_job'
+COCINA_CLI_DEFAULT_HEADER: str = 'cocina_job'
 
 # REGEX
 PY_EXT_REGX: str = r'\.py$'
