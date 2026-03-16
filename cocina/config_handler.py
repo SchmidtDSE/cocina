@@ -523,38 +523,6 @@ class ConfigHandler:
         return constants_module
 
 
-    # def _import_constants(self,
-    #         package_locator: Optional[str] = None) -> Union[ModuleType, None]:
-    #     """Import constants module if it exists.
-        
-    #     Args:
-    #         package_locator: Optional string used to help determine the location of a
-    #             "constants.py" file:
-    #             - None: use cocina.constants_package_name
-    #             - String containing "/":  path to a file withing the same package
-    #               as the constants.py file
-    #             - String NOT containing "/": the name of the package containg the
-    #               constants.py file
-
-    #     Returns:
-    #         Imported constants module or None
-    #     """
-    #     if package_locator is None:
-    #         package_name = self.cocina.constants_package_name
-    #     elif ('/' in package_locator):
-    #         locator_path = str(Path(package_locator).resolve())
-    #         package_name = re.sub(f'{self.project_root}/', '', locator_path).split('/', 1)[0]
-    #     else:
-    #         package_name = package_locator
-    #     constants_module = None
-    #     if package_name:
-    #         dot_path = f'{package_name}.{self.cocina.constants_module_name}'
-    #         try:
-    #             constants_module = importlib.import_module(dot_path)
-    #         except ImportError as e:
-    #             pass
-    #     return constants_module
-
     def _config_and_environment(self) -> tuple[dict, Optional[str]]:
         """Load configuration, adding environment-specific config if it exists.
         
@@ -739,12 +707,23 @@ class ConfigArgs:
             self.config_handler.cocina.args_config_folder,
             ext='.yaml',
             ext_regex=YAML_EXT_REGX)
+        parent = Path(args_config_path).parent
+        parent_config_path = (parent / 'config.yaml')
+        if (parent.name != 'args') and parent_config_path.is_file():
+            parent_config = read_yaml(str(parent_config_path))
+            parent_env = parent_config.pop('env', {})
+        else:
+            parent_config = {}
+            parent_env = {}
         try:
             args_config = read_yaml(args_config_path)
             # pop special values
             job = args_config.pop('job', None)
             config = args_config.pop('config', {})
+            args_config = {**parent_config, **args_config}
             env = args_config.pop('env', {})
+            config = {**parent_config, **config}
+            env = {**parent_env, **env}
             # update ch with config/env
             if self.config_handler.environment_name:
                 env = env.pop(self.config_handler.environment_name, {})
