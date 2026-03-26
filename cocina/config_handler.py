@@ -36,7 +36,7 @@ def cocina_path(
         path: str,
         project_root: str,
         *subfolders: Union[str, int, float],
-        replacement_name: Optional[str] = None,
+        config_name: Optional[str] = None,
         ext: Optional[str] = None,
         ext_regex: Optional[str] = None) -> str:
     """Get path of configuration file with flexible path resolution.
@@ -72,6 +72,7 @@ def cocina_path(
         path: Path specification (dot or slash separated)
         project_root: Project root directory
         *subfolders: Additional subfolders to include in path
+        config_name: FIX ME
         ext: File extension to add (default: None)
         ext_regex: Regular expression to match and extract extension from path
 
@@ -80,12 +81,11 @@ def cocina_path(
     """
     path = re.sub(f'^{project_root}/', '', path)
     if path[0] == '/':
-        if replacement_name:
+        if config_name:
             pypath = Path(path)
-            ext = pypath.suffix
-            path = pypath.parent / replacement_name
-            if ext and (not Path(replacement_name).suffix):
-                path = str(path) + ext
+            pycn = Path(config_name)
+            path = str(pypath.parent / pypath.stem / pycn.stem)
+            path += (pycn.suffix or pypath.suffix) 
         return path
     else:
         if ext_regex:
@@ -97,10 +97,8 @@ def cocina_path(
                 ext = ext or ''
         path = re.sub(r'\.', '/', path)
         parts = [project_root] + list(subfolders) + [path]
-        if replacement_name:
-            name = Path(parts[-1])
-            name = name.parent / replacement_name
-            parts = parts[:-1] + [name]
+        if config_name:
+            parts.append(config_name)
     return safe_join(*parts, ext=ext)
 
 
@@ -615,9 +613,12 @@ class ConfigArgs:
         """Initialize ConfigArgs.
 
         Args:
-            config_path: Path to job configuration file (relative to project_root/config/args/)
+            config_path: 
+                Path to job configuration file (relative to project_root/config/args/)
             user_config: Optional dictionary of user configuration overrides
-            config_name: FIX ME Optional config name - updates the "name" part of config-path
+            config_name: 
+                If non-null assume config_path returns folder and load the 
+                file <config_name>.yaml
             config_handler: Optional existing ConfigHandler instance to use
         """
         # set/load config_handler
@@ -723,11 +724,14 @@ class ConfigArgs:
             self.config_handler.project_root,
             self.config_handler.cocina.config_folder,
             self.config_handler.cocina.args_config_folder,
-            replacement_name=config_name,
+            config_name=config_name,
             ext='.yaml',
             ext_regex=YAML_EXT_REGX)
         parent = Path(args_config_path).parent
-        parent_config_path = (parent / 'config.yaml')
+        if config_name:
+            parent_config_path = (parent.parent / 'config.yaml')
+        else:
+            parent_config_path = (parent / 'config.yaml')
         if (parent.name != 'args') and parent_config_path.is_file():
             parent_config = read_yaml(str(parent_config_path))
             parent_env = parent_config.pop('env', {})
@@ -743,7 +747,6 @@ class ConfigArgs:
             env = args_config.pop('env', {})
             config = {**parent_config, **config}
             env = {**parent_env, **env}
-            # update ch with config/env
             if self.config_handler.environment_name:
                 env = env.pop(self.config_handler.environment_name, {})
                 config.update(env)

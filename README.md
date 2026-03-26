@@ -279,8 +279,8 @@ pixi run cocina job data_pipeline
 
 # Run with alternative config filename
 # - the above command loads config/args/data_pipeline.yaml
-# - the command below loads config/args/data_pipeline_v2.yaml
-pixi run cocina job data_pipeline:data_pipeline_v2
+# - the command below loads config/args/data_pipeline/v2.yaml
+pixi run cocina job data_pipeline:v2
 
 # Run with specific environment
 pixi run cocina job data_pipeline --env prod
