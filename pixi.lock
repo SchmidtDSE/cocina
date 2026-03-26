@@ -2090,8 +2090,8 @@ packages:
   timestamp: 1732193485989
 - pypi: ./
   name: cocina
-  version: 0.1.0
-  sha256: 6e7440ee0727d9b366eac3968d2af415c6ab2da0c77c8a3c2a8b21d886adaebc
+  version: 0.1.1
+  sha256: ff2096463ad5d9f05159b7919b2f830f48a0396a90f92ad1af059ee81200d91e
   requires_dist:
   - pyyaml
   - click>=8.2.1,<9
