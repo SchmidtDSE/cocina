@@ -116,7 +116,9 @@ def execute_job(job_name: str, user_config: Optional[dict] = None, printer: Opti
     error = False
 
     try:
-        config_args = ConfigArgs(job_name, user_config=user_config)
+        parts = job_name.split(':', maxsplit=1)
+        job_name, config_name = parts[0], parts[1] if len(parts) > 1 else None
+        config_args = ConfigArgs(job_name, user_config=user_config, config_name=config_name)
         printer.message(f'Run Job: {job_name}', vspace=1)
         job_module = config_args.import_job_module()
         try:

@@ -36,6 +36,7 @@ def cocina_path(
         path: str,
         project_root: str,
         *subfolders: Union[str, int, float],
+        replacement_name: Optional[str] = None,
         ext: Optional[str] = None,
         ext_regex: Optional[str] = None) -> str:
     """Get path of configuration file with flexible path resolution.
@@ -79,6 +80,12 @@ def cocina_path(
     """
     path = re.sub(f'^{project_root}/', '', path)
     if path[0] == '/':
+        if replacement_name:
+            pypath = Path(path)
+            ext = pypath.suffix
+            path = pypath.parent / replacement_name
+            if ext and (not Path(replacement_name).suffix):
+                path = str(path) + ext
         return path
     else:
         if ext_regex:
@@ -90,6 +97,10 @@ def cocina_path(
                 ext = ext or ''
         path = re.sub(r'\.', '/', path)
         parts = [project_root] + list(subfolders) + [path]
+        if replacement_name:
+            name = Path(parts[-1])
+            name = name.parent / replacement_name
+            parts = parts[:-1] + [name]
     return safe_join(*parts, ext=ext)
 
 
@@ -599,12 +610,14 @@ class ConfigArgs:
     def __init__(self,
             config_path: Optional[str] = None,
             user_config: Optional[dict] = None,
+            config_name: Optional[dict] = None,
             config_handler: Optional[ConfigHandler] = None) -> None:
         """Initialize ConfigArgs.
 
         Args:
             config_path: Path to job configuration file (relative to project_root/config/args/)
             user_config: Optional dictionary of user configuration overrides
+            config_name: FIX ME Optional config name - updates the "name" part of config-path
             config_handler: Optional existing ConfigHandler instance to use
         """
         # set/load config_handler
@@ -612,7 +625,8 @@ class ConfigArgs:
             self.config_handler = config_handler
         else:
             self.config_handler = ConfigHandler()
-        job, args_config, config = self._args_data(config_path, user_config)
+        job, args_config, config = self._args_data(config_path, user_config, config_name=config_name)
+
         self.config_handler.update(config)
         self.args_config = self.config_handler.process_values(args_config)
         self.property_names = list(self.args_config.keys())
@@ -696,7 +710,11 @@ class ConfigArgs:
     #
     # INTERNAL
     #
-    def _args_data(self, config_path: str, user_config: Union[dict, None]) -> tuple[dict, Union[str, None], dict]:
+    def _args_data(
+            self,
+            config_path: str, 
+            user_config: Union[dict, None],
+            config_name: Optional[str] = None) -> tuple[dict, Union[str, None], dict]:
         """
         FIX  ME
         """
@@ -705,6 +723,7 @@ class ConfigArgs:
             self.config_handler.project_root,
             self.config_handler.cocina.config_folder,
             self.config_handler.cocina.args_config_folder,
+            replacement_name=config_name,
             ext='.yaml',
             ext_regex=YAML_EXT_REGX)
         parent = Path(args_config_path).parent
@@ -730,7 +749,7 @@ class ConfigArgs:
                 config.update(env)
             if user_config:
                 config.update(user_config)
-        except Exception:
+        except Exception as e:
             job, args_config, config = None, {}, {}
         return job, args_config, config
 
