@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cocina"
-version = "0.1.2"
+version = "0.1.3"
 description = "A collection of tools for building structured Python projects"
 readme = "README.md"
 license = {text = "BSd 3-clause"}
@@ -34,9 +34,11 @@ packages = [
 	"cocina",
 ]
 
-[tool.pixi.project]
+[tool.pixi.workspace]
 channels = ["conda-forge"]
 platforms = ["linux-64", "linux-aarch64", "osx-64", "osx-arm64"]
+# canister-worm-protection
+exclude-newer = "2026-03-12"
 
 [tool.pixi.pypi-dependencies]
 cocina = { path = ".", editable = true }
