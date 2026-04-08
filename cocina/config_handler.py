@@ -639,6 +639,7 @@ class ConfigArgs:
             ext_regex=PY_EXT_REGX)
         self._set_arg_kwargs()
 
+
     def import_job_module(self) -> Any:
         """Helper to import job module.
 
@@ -732,6 +733,7 @@ class ConfigArgs:
             parent_config_path = (parent.parent / 'config.yaml')
         else:
             parent_config_path = (parent / 'config.yaml')
+
         if (parent.name != 'args') and parent_config_path.is_file():
             parent_config = read_yaml(str(parent_config_path))
             parent_env = parent_config.pop('env', {})
@@ -743,7 +745,6 @@ class ConfigArgs:
             # pop special values
             job = args_config.pop('job', None)
             config = args_config.pop('config', {})
-            args_config = {**parent_config, **args_config}
             env = args_config.pop('env', {})
             config = {**parent_config, **config}
             env = {**parent_env, **env}
