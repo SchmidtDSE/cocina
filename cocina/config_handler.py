@@ -696,11 +696,11 @@ class ConfigArgs:
             ca = ConfigArgs('job_name')
             value = ca.some_config_key  # Access config value as attribute
             ```
-        """ 
+        """
         if key in self.config_handler:
             return getattr(self.config_handler, key)
         else:
-            return getattr(self, key)
+            raise AttributeError(f'{key} not found in config_handler or config_args (ConfigArgs.__getattr__)')
 
     def __repr__(self) -> str:
         """Return string representation of ConfigHandler."""
