@@ -337,7 +337,7 @@ class ConfigHandler:
             constants: Optional ModuleType. if provided <package_locator> ignored,
                 and ch.constants = <constants>
         """
-        self._bound_keys: set = set()
+        self._bound_keys: set[str] = set()
         self.project_root = get_project_root(search_directory=search_directory)
         self.cocina = CocinaConfig.init_for_project(self.project_root)
         self.constants = constants or self._import_constants(package_locator)
@@ -431,7 +431,7 @@ class ConfigHandler:
         self._bound_keys.update(values)
         self.config = bind_deferred_values(self.config, **values)
 
-    def unresolved(self) -> list:
+    def unresolved(self) -> list[str]:
         """``{{COCINA:KEY}}`` markers still unbound in the config.
 
         Returns:
@@ -716,15 +716,14 @@ class ConfigArgs:
         self._set_arg_kwargs()
         return self
 
-    def unresolved(self) -> list:
+    def unresolved(self) -> list[str]:
         """``{{COCINA:KEY}}`` markers still unbound in config or arg-sections.
 
         Returns:
             List of unbound marker strings, empty if fully bound
         """
-        return (
-            unresolved_deferred(self.config_handler.config) +
-            unresolved_deferred(self.args_config))
+        markers = unresolved_deferred(self.config_handler.config)
+        return markers + unresolved_deferred(self.args_config)
 
     def get(self, key: str, default: Any = None) -> Any:
         """get properties of config_handler and config args as attributes with default fallback.

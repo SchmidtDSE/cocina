@@ -385,7 +385,7 @@ def bind_deferred_values(value: Any, clean_path: bool = True, **values: Any) -> 
     return json.loads(value_str)
 
 
-def unresolved_deferred(value: Any) -> list:
+def unresolved_deferred(value: Any) -> list[str]:
     """Return any ``{{COCINA:KEY}}`` markers still present.
 
     For a pre-run "is everything bound?" check.

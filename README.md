@@ -312,6 +312,11 @@ assert not ca.unresolved(), ca.unresolved()   # optional pre-run guard
   template strings are left alone.
 - `bind()` resolves config values only, never `constants.py`. Constants are protected
   and are not templated.
+- `bind()` is one-way and applies to config that is already loaded. Load all config first —
+  constructing a `ConfigArgs` calls `update()`, which can introduce markers a completed bind
+  cannot reach.
+- Marker keys must match `[a-zA-Z][a-zA-Z0-9_-]*` — the same rule `<<KEY>>` uses. Keys outside
+  it (a leading underscore, for instance) are not seen by `unresolved()`.
 
 ---
 

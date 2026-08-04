@@ -67,6 +67,15 @@ def test_unresolved_ignores_bare_double_brace_templates():
     assert unresolved_deferred(stored_template) == []
 
 
+def test_bare_double_brace_template_survives_config_load(make_handler):
+    """A config holding an ordinary template string is untouched and not reported."""
+    handler = make_handler(
+        'PROMPT: "Hello {{NAME}}, see {{ user.profile }}"\n'
+        'P: "run/{{COCINA:MODEL}}/x"\n')
+    assert handler.config['PROMPT'] == 'Hello {{NAME}}, see {{ user.profile }}'
+    assert handler.unresolved() == ['{{COCINA:MODEL}}']
+
+
 def test_process_values_leaves_deferred_untouched(make_handler):
     """<<KEY>> resolves at load time; {{COCINA:KEY}} must survive for bind()."""
     handler = make_handler('BUCKET: b\nP: "<<BUCKET>>/{{COCINA:MODEL}}/r.jsonl"\n')
