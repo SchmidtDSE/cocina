@@ -22,6 +22,7 @@ Cocina is a collection of tools for building structured Python projects. It prov
 - [Configuration Files](#configuration-files)
   - [ConfigHandler](#confighandler)
   - [ConfigArgs](#configargs)
+  - [Deferred (Runtime) Values](#deferred-runtime-values)
 - [CLI](#cli)
   - [Initialize Project](#initialize-project)
   - [Run Jobs](#run-jobs)
@@ -260,6 +261,57 @@ ca.extract_data.kwargs   # {"limit": 1000, "debug": False}
 - Environment-specific overrides
 - Reference resolution from main config
 - Dynamic value substitution 
+
+### Deferred (Runtime) Values
+
+`<<KEY>>` is resolved once, when config loads, from other config keys. Some values are
+only known while a job is running — which model a generic job was asked to run, an id
+returned by another service. `{{COCINA:KEY}}` defers those: it is left untouched at load
+time and resolved by `bind()`.
+
+```yaml
+# config/config.yaml
+RESULTS_FILE: "<<OUTPUT_DIR>>/{{COCINA:MODEL_NAME}}/{{COCINA:MODEL_VERSION}}/results.jsonl"
+```
+
+```python
+ca = ConfigArgs('run_batch')
+ca.RESULTS_FILE   # 'output/{{COCINA:MODEL_NAME}}/{{COCINA:MODEL_VERSION}}/results.jsonl'
+
+ca.bind(MODEL_NAME='owl', MODEL_VERSION='v4')
+ca.RESULTS_FILE   # 'output/owl/v4/results.jsonl'
+```
+
+**Markers at a glance:**
+
+| Marker | Resolved | From | If missing |
+|---|---|---|---|
+| `<<KEY>>` | load time | another config key | error |
+| `[[COCINA:ENV]]` | load time | environment name | stripped |
+| `{{COCINA:KEY}}` | run time | `bind()` | left intact |
+
+**Binding in stages.** A marker with no provided value is left alone, so you can bind as
+values become known, and check what is outstanding:
+
+```python
+ca.bind(MODEL_NAME='owl')
+ca.unresolved()                # ['{{COCINA:MODEL_VERSION}}']
+ca.bind(MODEL_VERSION='v4')
+ca.unresolved()                # []
+
+assert not ca.unresolved(), ca.unresolved()   # optional pre-run guard
+```
+
+**Notes:**
+- Like all cocina markers, `{{COCINA:KEY}}` must sit inside a quoted YAML string.
+- Bound values are substituted as strings: `bind(N=1000)` gives `'1000'`.
+- Binding is one-way. Rebinding an already-bound key raises `ValueError` rather than
+  silently doing nothing.
+- `ConfigHandler` is a singleton, so bindings apply process-wide.
+- A bare `{{KEY}}` is *not* a cocina marker — config values containing ordinary
+  template strings are left alone.
+- `bind()` resolves config values only, never `constants.py`. Constants are protected
+  and are not templated.
 
 ---
 
