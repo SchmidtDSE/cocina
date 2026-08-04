@@ -1,4 +1,6 @@
 """Tests for deferred {{COCINA:KEY}} markers and bind()."""
+import pytest
+
 from cocina.utils import bind_deferred_values, unresolved_deferred
 
 
@@ -62,3 +64,34 @@ def test_unresolved_ignores_bare_double_brace_templates():
     """The COCINA: namespace is what keeps stored Jinja/Handlebars out of unresolved()."""
     stored_template = {'body': 'Hello {{NAME}}, see {{ user.profile }}'}
     assert unresolved_deferred(stored_template) == []
+
+
+def test_process_values_leaves_deferred_untouched(make_handler):
+    """<<KEY>> resolves at load time; {{COCINA:KEY}} must survive for bind()."""
+    handler = make_handler('BUCKET: b\nP: "<<BUCKET>>/{{COCINA:MODEL}}/r.jsonl"\n')
+    assert handler.config['P'] == 'b/{{COCINA:MODEL}}/r.jsonl'
+
+
+def test_config_handler_bind_and_unresolved(make_handler):
+    handler = make_handler('P: "run/{{COCINA:MODEL}}/{{COCINA:VERSION}}/x"\n')
+    assert set(handler.unresolved()) == {'{{COCINA:MODEL}}', '{{COCINA:VERSION}}'}
+    handler.bind(MODEL='owl', VERSION='v4')
+    assert handler.config['P'] == 'run/owl/v4/x'
+    assert handler.unresolved() == []
+
+
+def test_config_handler_binds_in_stages(make_handler):
+    handler = make_handler('P: "run/{{COCINA:MODEL}}/{{COCINA:VERSION}}/x"\n')
+    handler.bind(MODEL='owl')
+    assert handler.config['P'] == 'run/owl/{{COCINA:VERSION}}/x'
+    handler.bind(VERSION='v4')
+    assert handler.config['P'] == 'run/owl/v4/x'
+
+
+def test_config_handler_rebind_raises(make_handler):
+    """A second bind would silently no-op - the marker is already gone - so it raises."""
+    handler = make_handler('P: "run/{{COCINA:MODEL}}/x"\n')
+    handler.bind(MODEL='owl')
+    with pytest.raises(ValueError, match='already bound'):
+        handler.bind(MODEL='birdnet')
+    assert handler.config['P'] == 'run/owl/x'

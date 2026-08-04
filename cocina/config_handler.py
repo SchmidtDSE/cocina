@@ -25,7 +25,8 @@ from cocina.constants import (
 )
 from cocina.utils import (
     singleton, safe_join, dir_search, read_yaml, replace_dictionary_values,
-    keyed_replace_dictionary_values, import_module_from_path
+    keyed_replace_dictionary_values, import_module_from_path,
+    bind_deferred_values, unresolved_deferred
 )
 
 
@@ -336,6 +337,7 @@ class ConfigHandler:
             constants: Optional ModuleType. if provided <package_locator> ignored,
                 and ch.constants = <constants>
         """
+        self._bound_keys: set = set()
         self.project_root = get_project_root(search_directory=search_directory)
         self.cocina = CocinaConfig.init_for_project(self.project_root)
         self.constants = constants or self._import_constants(package_locator)
@@ -402,6 +404,40 @@ class ConfigHandler:
         replacements = {ENVIRONMENT_KEYED_IDENTIFIER: self.environment_name}
         config = keyed_replace_dictionary_values(config, **replacements)
         return config
+
+    def bind(self, **values: Any) -> None:
+        """Resolve deferred ``{{COCINA:KEY}}`` markers in the config from runtime ``values``.
+
+        Markers with no provided value are left intact for a later ``bind``; use
+        ``unresolved`` to check what is still outstanding. Binding is one-way -
+        rebinding an already-bound key raises, because the marker is gone after the
+        first bind and a second call would silently do nothing.
+
+        Usage:
+            ```python
+            ch.bind(MODEL_NAME='owl', MODEL_VERSION='v4')
+            ```
+
+        Args:
+            **values: Runtime key-value pairs to bind
+
+        Raises:
+            ValueError: If any key has already been bound
+        """
+        repeats = set(values) & self._bound_keys
+        if repeats:
+            raise ValueError(
+                f'cocina: keys already bound, cannot rebind: {sorted(repeats)}')
+        self._bound_keys.update(values)
+        self.config = bind_deferred_values(self.config, **values)
+
+    def unresolved(self) -> list:
+        """``{{COCINA:KEY}}`` markers still unbound in the config.
+
+        Returns:
+            List of unbound marker strings, empty if fully bound
+        """
+        return unresolved_deferred(self.config)
 
     def get(self, key: str, default: Any = None) -> Any:
         """Get configuration value with default fallback.
