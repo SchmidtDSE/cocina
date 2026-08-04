@@ -22,7 +22,9 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, List, Optional, Union
 from types import ModuleType
-from cocina.constants import COCINA_NOT_FOUND, KEY_STR_REGEX
+from cocina.constants import (
+    COCINA_NOT_FOUND, KEY_STR_REGEX,
+    DEFERRED_MARKER_PREFIX, DEFERRED_MARKER_SUFFIX, DEFERRED_KEYED_IDENTIFIER)
 
 
 #
@@ -343,6 +345,58 @@ def clean_path_string(value: str) -> str:
     """
     value = re.sub(r'(://)/+', r'\1', value)
     return re.sub(r'(?<!:)//+', '/', value)
+
+
+def bind_deferred_values(value: Any, clean_path: bool = True, **values: Any) -> Any:
+    """Resolve deferred ``{{COCINA:KEY}}`` markers from provided runtime ``values``.
+
+    Unlike ``<<KEY>>`` (resolved from sibling config at load time), ``{{COCINA:KEY}}``
+    markers are left untouched by ``process_values`` and bound later - from a value only
+    known at run time (a model-card field, a per-invocation id). Markers with no provided
+    value are left intact, so binding can happen in stages.
+
+    Values are substituted as strings: ``bind(N=1000)`` yields ``'1000'``, not ``1000``.
+
+    Args:
+        value: Dictionary, list, or other value to process
+        clean_path: Whether to clean double slashes in paths (default: True)
+        **values: Runtime key-value pairs to bind
+
+    Returns:
+        Value with provided markers replaced
+
+    Usage:
+        ```python
+        bind_deferred_values({'p': 'run/{{COCINA:MODEL}}/x'}, MODEL='owl')
+        # {'p': 'run/owl/x'}
+        ```
+
+    Note: like all cocina markers, ``{{COCINA:KEY}}`` must appear inside a quoted
+    YAML string.
+    """
+    value_str = json.dumps(value)
+    for key, val in values.items():
+        marker = f'{DEFERRED_MARKER_PREFIX}{key}{DEFERRED_MARKER_SUFFIX}'
+        # escape before splicing into the serialised blob: runtime values may
+        # contain quotes or backslashes, which would otherwise corrupt the JSON
+        value_str = value_str.replace(marker, json.dumps(str(val))[1:-1])
+    if clean_path:
+        value_str = clean_path_string(value_str)
+    return json.loads(value_str)
+
+
+def unresolved_deferred(value: Any) -> list:
+    """Return any ``{{COCINA:KEY}}`` markers still present.
+
+    For a pre-run "is everything bound?" check.
+
+    Args:
+        value: Dictionary, list, or other value to inspect
+
+    Returns:
+        List of unbound marker strings, empty if fully bound
+    """
+    return re.findall(DEFERRED_KEYED_IDENTIFIER, json.dumps(value))
 
 
 def safe_join(

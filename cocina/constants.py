@@ -32,6 +32,12 @@ ICON_SUCCESS = "✅"
 # - auto-update config/args with env
 ENVIRONMENT_KEYED_IDENTIFIER: str = r'\[\[COCINA:ENV\]\]'
 
+# - deferred (runtime-bound) values: left intact by process_values,
+#   resolved later by ConfigHandler.bind(**values) / ConfigArgs.bind(**values)
+DEFERRED_MARKER_PREFIX: str = '{{COCINA:'
+DEFERRED_MARKER_SUFFIX: str = '}}'
+DEFERRED_KEYED_IDENTIFIER: str = r'\{\{COCINA:' + KEY_STR_REGEX + r'\}\}'
+
 # environment variables
 # - env-key to store "env-name" to manage environment-specific configs/args
 cocina_env_key = "cocina.ENV_KEY"
