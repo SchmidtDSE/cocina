@@ -2,6 +2,7 @@
 import pytest
 
 from cocina.utils import bind_deferred_values, unresolved_deferred
+from cocina.config_handler import ConfigArgs, ConfigHandler
 
 
 def test_fixtures_build_a_working_config_handler(make_handler):
@@ -95,3 +96,44 @@ def test_config_handler_rebind_raises(make_handler):
     with pytest.raises(ValueError, match='already bound'):
         handler.bind(MODEL='birdnet')
     assert handler.config['P'] == 'run/owl/x'
+
+
+@pytest.fixture
+def job_args(cocina_project):
+    """A project with config.yaml plus config/args/my_job.yaml, handler primed."""
+    (cocina_project / 'config' / 'config.yaml').write_text(
+        'BUCKET: b\nRESULTS: "<<BUCKET>>/{{COCINA:MODEL}}/r.jsonl"\n')
+    (cocina_project / 'config' / 'args' / 'my_job.yaml').write_text(
+        'run:\n'
+        '  kwargs:\n'
+        '    out_dir: "out/{{COCINA:MODEL}}/{{COCINA:VERSION}}"\n'
+        '    limit: 5\n')
+    ConfigHandler(search_directory=str(cocina_project))
+    return ConfigArgs('my_job')
+
+
+def test_config_args_binds_arg_sections(job_args):
+    job_args.bind(MODEL='owl', VERSION='v4')
+    assert job_args.run.kwargs == {'out_dir': 'out/owl/v4', 'limit': 5}
+
+
+def test_config_args_binds_config_values(job_args):
+    job_args.bind(MODEL='owl')
+    assert job_args.RESULTS == 'b/owl/r.jsonl'
+
+
+def test_config_args_bind_returns_self_for_chaining(job_args):
+    assert job_args.bind(MODEL='owl') is job_args
+
+
+def test_config_args_unresolved_spans_config_and_args(job_args):
+    assert set(job_args.unresolved()) == {'{{COCINA:MODEL}}', '{{COCINA:VERSION}}'}
+    job_args.bind(MODEL='owl', VERSION='v4')
+    assert job_args.unresolved() == []
+
+
+def test_config_args_rebind_raises_and_leaves_args_untouched(job_args):
+    job_args.bind(MODEL='owl')
+    with pytest.raises(ValueError, match='already bound'):
+        job_args.bind(MODEL='birdnet', VERSION='v4')
+    assert job_args.run.kwargs['out_dir'] == 'out/owl/{{COCINA:VERSION}}'

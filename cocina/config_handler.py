@@ -690,6 +690,42 @@ class ConfigArgs:
         """
         return import_module_from_path(self.job_path)
 
+    def bind(self, **values: Any) -> "ConfigArgs":
+        """Resolve deferred ``{{COCINA:KEY}}`` markers in config and arg-sections.
+
+        Binds runtime ``values`` into both the shared config and this job's
+        arg-sections, then rebuilds the arg-section wrappers so ``ca.<section>.args``
+        and ``.kwargs`` reflect the bound values.
+
+        Usage:
+            ```python
+            ca.bind(MODEL_NAME=card.model_name, MODEL_VERSION=card.model_version)
+            ```
+
+        Args:
+            **values: Runtime key-value pairs to bind
+
+        Returns:
+            self, for chaining
+
+        Raises:
+            ValueError: If any key has already been bound
+        """
+        self.config_handler.bind(**values)
+        self.args_config = bind_deferred_values(self.args_config, **values)
+        self._set_arg_kwargs()
+        return self
+
+    def unresolved(self) -> list:
+        """``{{COCINA:KEY}}`` markers still unbound in config or arg-sections.
+
+        Returns:
+            List of unbound marker strings, empty if fully bound
+        """
+        return (
+            unresolved_deferred(self.config_handler.config) +
+            unresolved_deferred(self.args_config))
+
     def get(self, key: str, default: Any = None) -> Any:
         """get properties of config_handler and config args as attributes with default fallback.
 
