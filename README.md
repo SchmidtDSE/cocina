@@ -302,11 +302,31 @@ ca.unresolved()                # []
 assert not ca.unresolved(), ca.unresolved()   # optional pre-run guard
 ```
 
+**Binding from a file or dict.** Like `update()`, `bind()` also takes a yaml path and/or
+dict positionally — handy for binding a whole model card at once instead of unpacking it
+yourself:
+
+```python
+ca.bind('cards/owl-v4.yaml')      # path, relative to project root
+ca.bind(card_dict)                # or an already-loaded dict
+```
+
+A key provided by more than one source in the same call — two positional sources, or a
+positional source and a kwarg — raises rather than picking one silently. To override part
+of a loaded card, make the override explicit before binding:
+
+```python
+card = read_yaml('cards/owl-v4.yaml')
+card['MODEL_VERSION'] = 'v5'
+ca.bind(card)
+```
+
 **Notes:**
 - Like all cocina markers, `{{COCINA:KEY}}` must sit inside a quoted YAML string.
 - Bound values are substituted as strings: `bind(N=1000)` gives `'1000'`.
 - Binding is one-way. Rebinding an already-bound key raises `ValueError` rather than
-  silently doing nothing.
+  silently doing nothing — the same rule applies within a single call: a key given by
+  more than one source raises rather than one silently winning.
 - `ConfigHandler` is a singleton, so bindings apply process-wide.
 - A bare `{{KEY}}` is *not* a cocina marker — config values containing ordinary
   template strings are left alone.
