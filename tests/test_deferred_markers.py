@@ -107,6 +107,38 @@ def test_config_handler_rebind_raises(make_handler):
     assert handler.config['P'] == 'run/owl/x'
 
 
+def test_config_handler_bind_from_dict(make_handler):
+    handler = make_handler('P: "run/{{COCINA:MODEL}}/{{COCINA:VERSION}}/x"\n')
+    handler.bind({'MODEL': 'owl', 'VERSION': 'v4'})
+    assert handler.config['P'] == 'run/owl/v4/x'
+
+
+def test_config_handler_bind_from_yaml_path(make_handler, cocina_project):
+    (cocina_project / 'card.yaml').write_text('MODEL: owl\nVERSION: v4\n')
+    handler = make_handler('P: "run/{{COCINA:MODEL}}/{{COCINA:VERSION}}/x"\n')
+    handler.bind('card.yaml')
+    assert handler.config['P'] == 'run/owl/v4/x'
+
+
+def test_config_handler_bind_raises_on_key_in_both_arg_and_kwarg(make_handler):
+    """A key from a positional source and a kwarg is ambiguous, not a silent override."""
+    handler = make_handler('P: "run/{{COCINA:MODEL}}/x"\n')
+    with pytest.raises(ValueError, match='both \\*args and \\*\\*values'):
+        handler.bind({'MODEL': 'owl'}, MODEL='birdnet')
+
+
+def test_config_handler_bind_raises_on_key_in_two_positional_args(make_handler):
+    handler = make_handler('P: "run/{{COCINA:MODEL}}/x"\n')
+    with pytest.raises(ValueError, match='more than one source'):
+        handler.bind({'MODEL': 'owl'}, {'MODEL': 'birdnet'})
+
+
+def test_config_handler_bind_rejects_bad_arg_type(make_handler):
+    handler = make_handler('P: "run/{{COCINA:MODEL}}/x"\n')
+    with pytest.raises(ValueError, match='string.*or.*dict'):
+        handler.bind(123)
+
+
 @pytest.fixture
 def job_args(cocina_project):
     """A project with config.yaml plus config/args/my_job.yaml, handler primed."""
@@ -146,3 +178,15 @@ def test_config_args_rebind_raises_and_leaves_args_untouched(job_args):
     with pytest.raises(ValueError, match='already bound'):
         job_args.bind(MODEL='birdnet', VERSION='v4')
     assert job_args.run.kwargs['out_dir'] == 'out/owl/{{COCINA:VERSION}}'
+
+
+def test_config_args_bind_from_dict(job_args):
+    job_args.bind({'MODEL': 'owl', 'VERSION': 'v4'})
+    assert job_args.run.kwargs == {'out_dir': 'out/owl/v4', 'limit': 5}
+    assert job_args.RESULTS == 'b/owl/r.jsonl'
+
+
+def test_config_args_bind_from_yaml_path(job_args, cocina_project):
+    (cocina_project / 'card.yaml').write_text('MODEL: owl\nVERSION: v4\n')
+    job_args.bind('card.yaml')
+    assert job_args.run.kwargs == {'out_dir': 'out/owl/v4', 'limit': 5}

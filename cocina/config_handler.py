@@ -103,6 +103,58 @@ def cocina_path(
     return safe_join(*parts, ext=ext)
 
 
+def _resolve_bind_args(
+        project_root: str,
+        args: Sequence[Union[str, dict]],
+        values: dict) -> dict:
+    """Merge ``bind()`` positional args (yaml paths and/or dicts) and kwargs into one dict.
+
+    Handles the str/dict positional args the same way ``ConfigHandler.update`` does -
+    a str is a path to a yaml file (relative to <project_root> unless absolute), a dict
+    is merged directly. Unlike ``update``, a key provided by more than one source raises
+    rather than letting the later source silently win: ``bind()`` already refuses to
+    silently resolve a conflict across calls (the rebind guard in ``ConfigHandler.bind``),
+    so the same key showing up twice within one call is the same footgun and gets the
+    same treatment.
+
+    Args:
+        project_root: Project root directory, used to resolve string paths
+        args: Positional args passed to ``bind()``
+        values: Keyword args passed to ``bind()``
+
+    Returns:
+        Merged dict of key-value pairs to bind
+
+    Raises:
+        ValueError: If an arg is not a str or dict, or if a key is provided by
+            more than one source (positional or keyword)
+    """
+    merged: dict = {}
+    for arg in args:
+        if isinstance(arg, dict):
+            source = arg
+        elif isinstance(arg, str):
+            path = cocina_path(arg, project_root, ext_regex=YAML_EXT_REGX, ext='.yaml')
+            source = read_yaml(path, safe=True)
+        else:
+            err = (
+                'ch.bind arg must be either '
+                'a string (path to a yaml file), or '
+                'a dict (key-value pairs to bind)')
+            raise ValueError(err)
+        repeats = set(source) & set(merged)
+        if repeats:
+            raise ValueError(
+                f'cocina: bind() got {sorted(repeats)} from more than one source')
+        merged.update(source)
+    repeats = set(values) & set(merged)
+    if repeats:
+        raise ValueError(
+            f'cocina: bind() got {sorted(repeats)} from both *args and **values')
+    merged.update(values)
+    return merged
+
+
 def get_project_root(
         project_root: Optional[str] = None,
         search_directory: Optional[str] = None) -> str:
@@ -405,8 +457,8 @@ class ConfigHandler:
         config = keyed_replace_dictionary_values(config, **replacements)
         return config
 
-    def bind(self, **values: Any) -> None:
-        """Resolve deferred ``{{COCINA:KEY}}`` markers in the config from runtime ``values``.
+    def bind(self, *args: Union[str, dict], **values: Any) -> None:
+        """Resolve deferred ``{{COCINA:KEY}}`` markers in the config from runtime values.
 
         Markers with no provided value are left intact for a later ``bind``; use
         ``unresolved`` to check what is still outstanding. Binding is one-way -
@@ -416,20 +468,28 @@ class ConfigHandler:
         Usage:
             ```python
             ch.bind(MODEL_NAME='owl', MODEL_VERSION='v4')
+            ch.bind('cards/owl-v4.yaml')
             ```
 
         Args:
-            **values: Runtime key-value pairs to bind
+            *args: Same as ``update`` - str (path to yaml file, relative to
+                project root unless absolute) and/or dict.
+            **values: Runtime key-value pairs to bind. A key given by more than
+                one source (another positional arg, or already bound in a prior
+                call) raises rather than silently picking one.
 
         Raises:
-            ValueError: If any key has already been bound
+            ValueError: If an arg is not a str or dict, if a key is provided by
+                more than one source in this call, or if any key has already
+                been bound in a prior call
         """
-        repeats = set(values) & self._bound_keys
+        merged = _resolve_bind_args(self.project_root, args, values)
+        repeats = set(merged) & self._bound_keys
         if repeats:
             raise ValueError(
                 f'cocina: keys already bound, cannot rebind: {sorted(repeats)}')
-        self._bound_keys.update(values)
-        self.config = bind_deferred_values(self.config, **values)
+        self._bound_keys.update(merged)
+        self.config = bind_deferred_values(self.config, **merged)
 
     def unresolved(self) -> list[str]:
         """``{{COCINA:KEY}}`` markers still unbound in the config.
@@ -690,29 +750,37 @@ class ConfigArgs:
         """
         return import_module_from_path(self.job_path)
 
-    def bind(self, **values: Any) -> "ConfigArgs":
+    def bind(self, *args: Union[str, dict], **values: Any) -> "ConfigArgs":
         """Resolve deferred ``{{COCINA:KEY}}`` markers in config and arg-sections.
 
-        Binds runtime ``values`` into both the shared config and this job's
+        Binds runtime values into both the shared config and this job's
         arg-sections, then rebuilds the arg-section wrappers so ``ca.<section>.args``
         and ``.kwargs`` reflect the bound values.
 
         Usage:
             ```python
             ca.bind(MODEL_NAME=card.model_name, MODEL_VERSION=card.model_version)
+            ca.bind('cards/owl-v4.yaml')
             ```
 
         Args:
-            **values: Runtime key-value pairs to bind
+            *args: Same as ``ConfigHandler.bind`` - str (path to yaml file) and/or
+                dict.
+            **values: Runtime key-value pairs to bind. A key given by more than
+                one source (another positional arg, or already bound in a prior
+                call) raises rather than silently picking one.
 
         Returns:
             self, for chaining
 
         Raises:
-            ValueError: If any key has already been bound
+            ValueError: If an arg is not a str or dict, if a key is provided by
+                more than one source in this call, or if any key has already
+                been bound in a prior call
         """
-        self.config_handler.bind(**values)
-        self.args_config = bind_deferred_values(self.args_config, **values)
+        merged = _resolve_bind_args(self.config_handler.project_root, args, values)
+        self.config_handler.bind(**merged)
+        self.args_config = bind_deferred_values(self.args_config, **merged)
         self._set_arg_kwargs()
         return self
 
