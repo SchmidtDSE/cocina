@@ -318,8 +318,9 @@ class ConfigHandler:
         - `[[COCINA:ENV]]`: the current environment name (resolved once, at load)
 
         `[[KEY]]` markers stay literal in the template and are re-resolved from
-        `template + bindings` on every `bind()`. Escape with a backslash for a
-        literal bracket: `\\[[Page]]` renders as `[[Page]]`.
+        `template + bindings` on every `bind()`. There is no escape: bracket text
+        that isn't a bare key or a known namespace (a space, colon, or other
+        non-key content, e.g. `[[Page Title]]` or `[[09:00]]`) is left literal.
 
     Usage:
         ```python

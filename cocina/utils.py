@@ -37,8 +37,7 @@ TIME_FORMAT: str = '%H:%M:%S'
 DATE_TIME_FORMAT: str = '%Y.%m.%d %H:%M:%S'
 TIME_STAMP_FORMAT: str = '%Y%m%d-%H%M%S'
 _MARKER_RE = re.compile(MARKER_REGEX)
-_RESIDUAL_RE = re.compile(r'(?<!\\)\[\[[^\[\]]+\]\]')
-_ESCAPE_RE = re.compile(r'\\(\[\[[^\[\]]+\]\])')
+_RESIDUAL_RE = re.compile(r'\[\[[^\[\]]+\]\]')
 
 
 #
@@ -310,9 +309,10 @@ def resolve_env_markers(value: Any, environment_name: Optional[str]) -> Any:
 
     Recursively visits dict values and list items (never dict keys). `[[ENV:VAR]]`
     resolves from ``os.environ`` and `[[COCINA:ENV]]` resolves to the environment
-    name; both warn + render empty when absent. A bare `[[KEY]]` and an escaped
-    `\\[[...]]` are left untouched for the later render pass. An invalid namespace
-    raises ``ValueError``.
+    name; both warn + render empty when absent. Any other bracketed content -- a
+    bare `[[KEY]]` or unrecognized `[[x:y]]` text (a time, a URL, a namespaced
+    label) -- is left untouched for the later render pass. There is no escape: a
+    backslash before `[[` is an ordinary character.
 
     Args:
         value: Dictionary, list, or other value to process
@@ -322,8 +322,9 @@ def resolve_env_markers(value: Any, environment_name: Optional[str]) -> Any:
         Value with env markers resolved and every other marker preserved
 
     Raises:
-        ValueError: On a reserved-namespace typo (`[[COCINA:NOPE]]`), a malformed
-            `[[ENV:...]]` payload, or any unknown namespace.
+        ValueError: On a reserved-namespace typo (`[[COCINA:NOPE]]`) or a malformed
+            `[[ENV:...]]` payload. An unrecognized namespace is left literal, not
+            raised, so ordinary colon-bearing text never crashes the load.
     """
     if isinstance(value, dict):
         return {k: resolve_env_markers(v, environment_name) for k, v in value.items()}
@@ -331,9 +332,7 @@ def resolve_env_markers(value: Any, environment_name: Optional[str]) -> Any:
         return [resolve_env_markers(v, environment_name) for v in value]
     if isinstance(value, str):
         def repl(match: re.Match) -> str:
-            escape, inner = match.group(1), match.group(2)
-            if escape:
-                return match.group(0)  # escaped: leave for the render pass
+            inner = match.group(1)
             if inner == COCINA_ENV_MARKER:
                 if environment_name:
                     return str(environment_name)
@@ -351,9 +350,9 @@ def resolve_env_markers(value: Any, environment_name: Optional[str]) -> Any:
                 raise ValueError(
                     f'cocina: [[{inner}]] uses reserved namespace COCINA '
                     f'(only [[COCINA:ENV]] is valid)')
-            if ':' in inner:
-                raise ValueError(f'cocina: [[{inner}]] uses an unknown namespace')
-            return match.group(0)  # bare [[KEY]] or non-key text: leave literal
+            # bare [[KEY]], or [[x:y]] in an unrecognized namespace (a time, a
+            # URL, a label): leave literal for the render pass, don't crash
+            return match.group(0)
         return clean_path_string(_MARKER_RE.sub(repl, value))
     return value
 
@@ -367,8 +366,9 @@ def resolve_markers(template: Any, source: dict) -> tuple[Any, list[str]]:
     dict keys, never via JSON serialization). A missing key strips to its bare word
     and warns once per distinct key across the whole pass. A reference is followed
     only one level: a resolved value that itself contains a marker keeps that marker,
-    which is reported (covering self and mutual cycles). An escaped `\\[[...]]`
-    renders as literal `[[...]]` with no lookup or warning.
+    which is reported (covering self and mutual cycles). Non-key bracket text (a
+    space, colon, or other non-key content, e.g. `[[Page Title]]` or `[[09:00]]`)
+    is left literal and not reported.
 
     Args:
         template: The pristine template (dict/list/str/other) to resolve
@@ -398,9 +398,7 @@ def _render_markers(value: Any, source: dict, unresolved: list[str], warned: set
         return [_render_markers(v, source, unresolved, warned) for v in value]
     if isinstance(value, str):
         def repl(match: re.Match) -> str:
-            escape, inner = match.group(1), match.group(2)
-            if escape:
-                return match.group(0)  # escaped: stripped after the residual scan
+            inner = match.group(1)
             if re.fullmatch(KEY_STR_REGEX, inner):
                 if inner in source:
                     return str(source[inner])  # single pass: not re-scanned
@@ -411,15 +409,14 @@ def _render_markers(value: Any, source: dict, unresolved: list[str], warned: set
                 return inner  # strip brackets to the bare word
             return match.group(0)  # non-key text: leave literal
         rendered = clean_path_string(_MARKER_RE.sub(repl, value))
-        # residual (non-chained) markers introduced by substituted values, excluding
-        # escaped literals; only valid-key-shaped brackets count (non-key bracket
-        # text, e.g. `[[Page Title]]`, is left literal and not reported - same test
-        # as the callback's literal branch above); then remove the escape so
-        # `\[[X]]` renders as `[[X]]`
+        # residual (non-chained) markers introduced by substituted values; only
+        # valid-key-shaped brackets count (non-key bracket text, e.g.
+        # `[[Page Title]]`, is left literal and not reported - same test as the
+        # callback's literal branch above)
         for residual in _RESIDUAL_RE.findall(rendered):
             if re.fullmatch(KEY_STR_REGEX, residual[2:-2]):
                 unresolved.append(residual)
-        return _ESCAPE_RE.sub(r'\1', rendered)
+        return rendered
     return value
 
 

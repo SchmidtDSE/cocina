@@ -100,10 +100,18 @@ def test_bind_rejects_bad_arg_type(make_handler):
         handler.bind(123)
 
 
-def test_literal_escape_survives_load(make_handler):
-    handler = make_handler("PAGE: '\\[[Page]]'\n")  # single-quoted YAML -> one backslash
-    assert handler.config['PAGE'] == '[[Page]]'
+def test_colon_bracket_content_loads_literal(make_handler):
+    # A value with unrecognized [[x:y]] content loads without crashing and stays literal.
+    handler = make_handler("T: 'window [[09:00]] open'\n")
+    assert handler.config['T'] == 'window [[09:00]] open'
     assert handler.unresolved() == []
+
+
+def test_backslash_before_marker_is_ordinary(make_handler):
+    # No escape grammar: the backslash is a plain char and the marker still binds.
+    handler = make_handler("P: 'C:\\[[MODEL]]\\out'\n")  # single-quoted YAML -> one backslash
+    handler.bind(MODEL='owl')
+    assert handler.config['P'] == 'C:\\owl\\out'
 
 
 def test_update_replaces_template_and_reresolves_with_bindings(make_handler):

@@ -35,9 +35,19 @@ def test_env_pass_leaves_bare_key_markers_literal():
     assert out['p'] == 'run/[[MODEL]]/x'
 
 
-def test_env_pass_leaves_escaped_markers_literal():
-    out = resolve_env_markers({'p': r'\[[COCINA:ENV]]'}, 'prod')
-    assert out['p'] == r'\[[COCINA:ENV]]'  # escape survives to the render pass
+def test_env_pass_backslash_before_marker_is_ordinary():
+    # No escape grammar: the backslash is a plain char and the marker still resolves.
+    out = resolve_env_markers({'p': r'C:\[[COCINA:ENV]]'}, 'prod')
+    assert out['p'] == r'C:\prod'
+
+
+def test_env_pass_leaves_colon_content_literal():
+    # A time / URL / label with a colon is not a known namespace -> left literal,
+    # NOT raised, so ordinary config text never crashes the load.
+    out = resolve_env_markers(
+        {'a': 'open [[09:00]] close', 'b': '[[http://x.com]]'}, 'prod')
+    assert out['a'] == 'open [[09:00]] close'
+    assert out['b'] == '[[http://x.com]]'
 
 
 def test_env_pass_supports_dotted_env_var(monkeypatch):
@@ -51,9 +61,10 @@ def test_reserved_cocina_namespace_typo_raises():
         resolve_env_markers({'p': '[[COCINA:NOPE]]'}, 'prod')
 
 
-def test_unknown_namespace_raises():
-    with pytest.raises(ValueError, match='namespace'):
-        resolve_env_markers({'p': '[[SECRET:TOKEN]]'}, 'prod')
+def test_unknown_namespace_left_literal():
+    # Only ENV: and COCINA: are namespaces; anything else is literal text, not an error.
+    out = resolve_env_markers({'p': '[[SECRET:TOKEN]]'}, 'prod')
+    assert out['p'] == '[[SECRET:TOKEN]]'
 
 
 # --- resolve_markers (per-bind render pass) ---
@@ -102,11 +113,13 @@ def test_markers_in_dict_keys_are_never_interpreted():
     assert resolved['[[K]]'] == 'v'
 
 
-def test_escaped_marker_renders_literal_without_warning(recwarn):
-    resolved, unresolved = resolve_markers({'p': r'\[[Page]]'}, {})
-    assert resolved['p'] == '[[Page]]'
+def test_backslash_before_marker_is_ordinary(recwarn):
+    # No escape grammar: the backslash is a plain char and the marker resolves,
+    # so Windows paths render correctly instead of being silently mangled.
+    resolved, unresolved = resolve_markers({'p': r'C:\[[MODEL]]\out'}, {'MODEL': 'owl'})
+    assert resolved['p'] == r'C:\owl\out'
     assert unresolved == []
-    assert [w for w in recwarn if 'Page' in str(w.message)] == []
+    assert list(recwarn) == []
 
 
 def test_single_pass_does_not_chain_references():

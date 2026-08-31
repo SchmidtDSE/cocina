@@ -337,10 +337,11 @@ card['MODEL_VERSION'] = 'v5'
 ca.bind(card)
 ```
 
-**Literal brackets.** A backslash immediately before `[[` makes it literal:
-`\[[Page]]` renders as `[[Page]]` with no lookup and no warning. In YAML, use a
-single-quoted scalar (`'\[[Page]]'`) or escape the backslash in a double-quoted
-scalar (`"\\[[Page]]"`).
+**Literal brackets.** There is no escape character. Bracket text that isn't a bare
+key or a known namespace is left exactly as written — anything with a space or an
+unrecognized `namespace:` (e.g. `[[Page Title]]`, `[[09:00]]`, `[[step:2]]`) passes
+through literally, and a backslash before `[[` is an ordinary character (so Windows
+paths like `C:\[[MODEL]]\runs` render correctly).
 
 **Migrating from the old grammar.** The three previous markers collapse into one:
 
