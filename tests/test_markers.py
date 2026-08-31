@@ -122,12 +122,41 @@ def test_backslash_before_marker_is_ordinary(recwarn):
     assert list(recwarn) == []
 
 
-def test_single_pass_does_not_chain_references():
-    # A references B; B's value is itself a marker -> B's marker is NOT followed.
+@pytest.mark.parametrize(
+    'template',
+    [
+        {'MODEL': '[[VERSION]]', 'OUT': 'runs/[[MODEL]]/data'},
+        {'OUT': 'runs/[[MODEL]]/data', 'MODEL': '[[VERSION]]'},
+    ],
+)
+def test_config_references_resolve_transitively_regardless_of_order(template):
     resolved, unresolved = resolve_markers(
-        {'A': '[[B]]', 'B': '[[C]]'}, {'A': '[[B]]', 'B': '[[C]]'})
-    assert resolved['A'] == '[[C]]'
-    assert '[[C]]' in unresolved
+        template, template, bindings={'VERSION': 'v4'})
+    assert resolved['MODEL'] == 'v4'
+    assert resolved['OUT'] == 'runs/v4/data'
+    assert unresolved == []
+
+
+def test_missing_leaf_in_chain_recovers_on_later_resolution():
+    template = {'MODEL': '[[VERSION]]', 'OUT': 'runs/[[MODEL]]/data'}
+    with pytest.warns(UserWarning, match='VERSION') as caught:
+        first, unresolved = resolve_markers(template, template)
+    assert first == {'MODEL': 'VERSION', 'OUT': 'runs/VERSION/data'}
+    assert unresolved == ['[[VERSION]]']
+    assert len(caught) == 1
+
+    second, unresolved = resolve_markers(
+        template, template, bindings={'VERSION': 'v4'})
+    assert second == {'MODEL': 'v4', 'OUT': 'runs/v4/data'}
+    assert unresolved == []
+
+
+def test_binding_values_are_terminal_not_recursive_templates():
+    resolved, unresolved = resolve_markers(
+        {'OUT': 'runs/[[MODEL]]/data'}, {},
+        bindings={'MODEL': '[[VERSION]]'})
+    assert resolved['OUT'] == 'runs/[[VERSION]]/data'
+    assert unresolved == []
 
 
 def test_self_reference_cycle_is_reported():
@@ -136,10 +165,43 @@ def test_self_reference_cycle_is_reported():
     assert unresolved == ['[[A]]']
 
 
-def test_mutual_reference_cycle_is_reported():
-    resolved, unresolved = resolve_markers(
-        {'A': '[[B]]', 'B': '[[A]]'}, {'A': '[[B]]', 'B': '[[A]]'})
+def test_mutual_cycle_is_reported_and_binding_can_break_it(recwarn):
+    template = {'A': '[[B]]', 'B': '[[A]]', 'OUT': '[[A]]'}
+    cycled, unresolved = resolve_markers(template, template)
     assert set(unresolved) == {'[[A]]', '[[B]]'}
+    assert any(value in ('[[A]]', '[[B]]') for value in cycled.values())
+    assert list(recwarn) == []
+
+    resolved, unresolved = resolve_markers(
+        template, template, bindings={'A': 'ready'})
+    assert resolved == {'A': 'ready', 'B': 'ready', 'OUT': 'ready'}
+    assert unresolved == []
+
+
+def test_cycle_tainted_results_are_not_cached_across_key_orders(recwarn):
+    out_first = {
+        'OUT': '[[A]]',
+        'A': '[[B]]+[[C]]',
+        'B': '[[A]]',
+        'C': '[[B]]',
+    }
+    a_first = {
+        'A': '[[B]]+[[C]]',
+        'B': '[[A]]',
+        'C': '[[B]]',
+        'OUT': '[[A]]',
+    }
+
+    resolved_out_first, unresolved_out_first = resolve_markers(
+        out_first, out_first)
+    resolved_a_first, unresolved_a_first = resolve_markers(
+        a_first, a_first)
+
+    assert resolved_out_first == resolved_a_first
+    cycle_members = {'[[A]]', '[[B]]', '[[C]]'}
+    assert set(unresolved_out_first) == cycle_members
+    assert set(unresolved_a_first) == cycle_members
+    assert list(recwarn) == []
 
 
 def test_bare_key_feature_preserved():

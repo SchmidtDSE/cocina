@@ -37,7 +37,6 @@ TIME_FORMAT: str = '%H:%M:%S'
 DATE_TIME_FORMAT: str = '%Y.%m.%d %H:%M:%S'
 TIME_STAMP_FORMAT: str = '%Y%m%d-%H%M%S'
 _MARKER_RE = re.compile(MARKER_REGEX)
-_RESIDUAL_RE = re.compile(r'\[\[[^\[\]]+\]\]')
 
 
 #
@@ -357,67 +356,86 @@ def resolve_env_markers(value: Any, environment_name: Optional[str]) -> Any:
     return value
 
 
-def resolve_markers(template: Any, source: dict) -> tuple[Any, list[str]]:
-    """Render `[[KEY]]` markers from ``source`` and report what stayed unresolved.
+def resolve_markers(
+        template: Any,
+        source: dict,
+        *,
+        bindings: Optional[dict] = None) -> tuple[Any, list[str]]:
+    """Resolve config ``[[KEY]]`` dependencies from a pristine template.
 
-    Non-destructive: ``template`` is not mutated. First applies the legacy bare-key
-    replacement (a value equal to a source key becomes that key's value), then
-    renders `[[KEY]]` markers structurally (dict values and list items only, never
-    dict keys, never via JSON serialization). A missing key strips to its bare word
-    and warns once per distinct key across the whole pass. A reference is followed
-    only one level: a resolved value that itself contains a marker keeps that marker,
-    which is reported (covering self and mutual cycles). Non-key bracket text (a
-    space, colon, or other non-key content, e.g. `[[Page Title]]` or `[[09:00]]`)
-    is left literal and not reported.
+    Config scalars in ``source`` are followed with depth-first traversal; acyclic
+    results are memoized. ``bindings`` override them but are terminal and are never
+    interpreted as marker templates. Missing leaves render as bare words and warn once
+    per key. Cycles are reported without warning and can be broken by a later binding.
+    The legacy exact bare-key prepass remains unchanged. Traversal is structural: dict
+    values and list items are visited, while dict keys and non-key bracket text stay
+    literal.
 
     Args:
-        template: The pristine template (dict/list/str/other) to resolve
-        source: Lookup for `[[KEY]]`, typically ``{**template_scalars, **bindings}``
-            with bindings winning on conflict
+        template: The pristine template (dict/list/str/other) to resolve.
+        source: Raw config scalars available for recursive ``[[KEY]]`` resolution.
+        bindings: Optional terminal runtime overrides for config scalars.
 
     Returns:
         (resolved_value, unresolved_markers) where unresolved_markers is an
-        order-preserving, de-duplicated list of full marker strings, e.g.
-        ``['[[MODEL]]', '[[VERSION]]']``
+        order-preserving, de-duplicated list of full marker strings.
     """
-    prepared = replace_dictionary_values(template, source)  # legacy bare-key feature
+    terminal = {} if bindings is None else dict(bindings)
+    lookup = {**source, **terminal}
     unresolved: list[str] = []
-    resolved = _render_markers(prepared, source, unresolved, set())
-    seen: list[str] = []
-    for marker in unresolved:
-        if marker not in seen:
-            seen.append(marker)
-    return resolved, seen
+    warned: set[str] = set()
+    cache: dict[str, Any] = {}
+    resolving: list[str] = []
+    cycle_tainted: set[str] = set()
 
+    def missing(key: str) -> str:
+        marker = f'[[{key}]]'
+        unresolved.append(marker)
+        if key not in warned:
+            warnings.warn(f'cocina: {marker} unresolved')
+            warned.add(key)
+        return key
 
-def _render_markers(value: Any, source: dict, unresolved: list[str], warned: set) -> Any:
-    """Recursive worker for ``resolve_markers`` (visits values only, never keys)."""
-    if isinstance(value, dict):
-        return {k: _render_markers(v, source, unresolved, warned) for k, v in value.items()}
-    if isinstance(value, list):
-        return [_render_markers(v, source, unresolved, warned) for v in value]
-    if isinstance(value, str):
-        def repl(match: re.Match) -> str:
-            inner = match.group(1)
-            if re.fullmatch(KEY_STR_REGEX, inner):
-                if inner in source:
-                    return str(source[inner])  # single pass: not re-scanned
-                unresolved.append(f'[[{inner}]]')
-                if inner not in warned:
-                    warnings.warn(f'cocina: [[{inner}]] unresolved')
-                    warned.add(inner)
-                return inner  # strip brackets to the bare word
-            return match.group(0)  # non-key text: leave literal
-        rendered = clean_path_string(_MARKER_RE.sub(repl, value))
-        # residual (non-chained) markers introduced by substituted values; only
-        # valid-key-shaped brackets count (non-key bracket text, e.g.
-        # `[[Page Title]]`, is left literal and not reported - same test as the
-        # callback's literal branch above)
-        for residual in _RESIDUAL_RE.findall(rendered):
-            if re.fullmatch(KEY_STR_REGEX, residual[2:-2]):
-                unresolved.append(residual)
-        return rendered
-    return value
+    def resolve_key(key: str) -> Any:
+        if key in terminal:
+            return terminal[key]
+        if key not in source:
+            return missing(key)
+        if key in cache:
+            return cache[key]
+        if key in resolving:
+            start = resolving.index(key)
+            for member in resolving[start:]:
+                unresolved.append(f'[[{member}]]')
+            # Active callers consumed cycle-derived output; none is safe to cache.
+            cycle_tainted.update(resolving)
+            return f'[[{key}]]'
+
+        resolving.append(key)
+        try:
+            result = render(source[key])
+        finally:
+            resolving.pop()
+        if key not in cycle_tainted:
+            cache[key] = result
+        return result
+
+    def render(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {key: render(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [render(item) for item in value]
+        if isinstance(value, str):
+            def replace(match: re.Match) -> str:
+                key = match.group(1)
+                if re.fullmatch(KEY_STR_REGEX, key):
+                    return str(resolve_key(key))
+                return match.group(0)
+            return clean_path_string(_MARKER_RE.sub(replace, value))
+        return value
+
+    prepared = replace_dictionary_values(template, lookup)
+    return render(prepared), list(dict.fromkeys(unresolved))
 
 
 def safe_join(

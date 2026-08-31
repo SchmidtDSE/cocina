@@ -283,6 +283,21 @@ ca.bind(MODEL_NAME='owl', MODEL_VERSION='v4')
 ca.RESULTS_FILE   # 'runs/prod/owl/v4/results.jsonl'
 ```
 
+References can chain through other config keys, regardless of YAML key order:
+
+```yaml
+MODEL: '[[VERSION]]'
+OUT: 'runs/[[MODEL]]/data'
+```
+
+```text
+bind(VERSION='v4')
+
+MODEL       v4
+OUT         runs/v4/data
+unresolved  []
+```
+
 **Markers at a glance:**
 
 | Form | Meaning | Resolved when | If missing |
@@ -292,8 +307,9 @@ ca.RESULTS_FILE   # 'runs/prod/owl/v4/results.jsonl'
 | `[[COCINA:ENV]]` | the environment *name* | once, at load | empty + warning |
 
 `ENV` and `COCINA` are reserved namespaces; `COCINA` has exactly one member,
-`[[COCINA:ENV]]`. Any other `[[COCINA:…]]`, or any other namespace before a `:`,
-raises `ValueError` at load — unknown namespaces are never treated as literal text.
+`[[COCINA:ENV]]`. Malformed `[[ENV:…]]` markers and any other `[[COCINA:…]]`
+member raise `ValueError` at load. Unrecognized namespaces such as
+`[[SECRET:TOKEN]]` remain literal.
 
 **Binding in stages.** A `[[KEY]]` with no value renders as its bare word (and warns),
 so you can bind as values become known and check what is outstanding:
@@ -358,8 +374,12 @@ renders as its bare word plus a warning.
 **Notes:**
 - Like all cocina markers, `[[…]]` must sit inside a quoted YAML string.
 - Resolved values are substituted as strings: `bind(N=1000)` gives `'1000'`.
-- Resolution is single-pass: a reference whose resolved value itself contains a marker
-  keeps that marker, and `unresolved()` reports it (this also surfaces reference cycles).
+- Config references resolve transitively and independently of YAML key order. Runtime
+  bindings are terminal overrides; marker-shaped text inside a bound value is not
+  interpreted as another dependency.
+- Missing leaves warn and remain in `unresolved()` until a later bind supplies them.
+  Self and mutual cycles are reported without warning and can be broken by binding
+  one of their keys.
 - `ConfigHandler` is a singleton, so bindings apply process-wide.
 - Ordinary template strings using other delimiters (`{{jinja}}`, `${shell}`) are left
   untouched — they are not `[[…]]`.

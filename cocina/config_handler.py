@@ -313,14 +313,17 @@ class ConfigHandler:
 
     Special Value Processing:
         ConfigHandler resolves `[[...]]` markers in configuration values:
-        - `[[KEY]]`: another config key or a bound value (missing -> bare word + warning)
+        - `[[KEY]]`: a transitive config reference; a bound value is a terminal
+          override (missing leaves -> bare word + warning)
         - `[[ENV:VAR]]`: an environment variable (resolved once, at load)
         - `[[COCINA:ENV]]`: the current environment name (resolved once, at load)
 
         `[[KEY]]` markers stay literal in the template and are re-resolved from
-        `template + bindings` on every `bind()`. There is no escape: bracket text
-        that isn't a bare key or a known namespace (a space, colon, or other
-        non-key content, e.g. `[[Page Title]]` or `[[09:00]]`) is left literal.
+        the config dependency source plus bindings on every `bind()`. Missing leaves
+        remain deferred until bound, and cycles stay unresolved until changed or
+        broken by a binding. There is no escape: bracket text that isn't a bare key
+        or a known namespace (a space, colon, or other non-key content, e.g.
+        `[[Page Title]]` or `[[09:00]]`) is left literal.
 
     Usage:
         ```python
@@ -444,10 +447,11 @@ class ConfigHandler:
     def bind(self, *args: Union[str, dict], rebind: bool = False, **values: Any) -> None:
         """Bind runtime values and re-resolve the config from the pristine template.
 
-        `[[KEY]]` markers with no bound (or config) value are left as their bare word
-        and reported by ``unresolved``; bind as values become known. Because every
-        bind re-resolves from ``self.template`` rather than editing a substituted
-        string, changing a bound key is possible with ``rebind=True``.
+        Config references resolve transitively, while bindings are terminal overrides.
+        `[[KEY]]` missing leaves are left as bare words and reported by ``unresolved``
+        until values become known; cycles remain unresolved until changed or broken.
+        Because every bind re-resolves from ``self.template`` rather than editing a
+        substituted string, changing a bound key is possible with ``rebind=True``.
 
         Usage:
             ```python
@@ -482,9 +486,8 @@ class ConfigHandler:
     def unresolved(self) -> list[str]:
         """`[[KEY]]` markers unresolved in the current config view (non-warning).
 
-        Reports both direct missing references and residual markers left by the
-        single-pass (non-chaining) boundary. Safe for a pre-run guard,
-        e.g. ``assert not ch.unresolved()``.
+        Reports deferred missing leaves and references participating in cycles. Safe
+        for a pre-run guard, e.g. ``assert not ch.unresolved()``.
 
         Returns:
             Order-preserving, de-duplicated list of unresolved marker strings.
@@ -645,19 +648,21 @@ class ConfigHandler:
             config.update(read_yaml(env_path, safe=True))
         return config, environment_name
 
-    def _binding_source(self) -> dict:
-        """Lookup for `[[KEY]]` resolution: string-valued template scalars, then bindings.
+    def _config_source(self) -> dict:
+        """Raw string-valued top-level config scalars used as dependency nodes."""
+        return {
+            key: value
+            for key, value in self.template.items()
+            if isinstance(value, str)}
 
-        Bindings win on conflict (decision 8). Scalars are raw top-level string config
-        values from the pristine template, never taken from a previously resolved view.
-        """
-        scalars = {k: v for k, v in self.template.items() if isinstance(v, str)}
-        return {**scalars, **self._bindings}
+    def _resolve_template(self, template: Any) -> tuple[Any, list[str]]:
+        """Resolve a template from config dependencies and terminal bindings."""
+        return resolve_markers(
+            template, self._config_source(), bindings=self._bindings)
 
     def _resolve(self) -> None:
-        """Recompute ``self.config`` and ``self._unresolved`` from template + bindings."""
-        self.config, self._unresolved = resolve_markers(
-            self.template, self._binding_source())
+        """Recompute config and unresolved markers from the pristine template."""
+        self.config, self._unresolved = self._resolve_template(self.template)
 
     def _check_protected_keys(self) -> None:
         """Ensure user's config files do not overwrite constants.py values.
@@ -683,7 +688,7 @@ class ConfigArgs:
     1. Sets up ConfigHandler for configuration management
     2. Loads argument configuration from specified path
     3. Resolves `[[...]]` markers in the arg-sections through an instance-local
-       `args_template`, combined with the shared handler's config and bindings
+       `args_template`, using transitive config dependencies and terminal bindings
     4. Creates ArgsKwargs attributes for each method in the config
 
     Path Resolution:
@@ -731,8 +736,8 @@ class ConfigArgs:
         self.config_handler.update(config)
         self.args_template = resolve_env_markers(
             args_config, self.config_handler.environment_name)
-        self.args_config, self._unresolved = resolve_markers(
-            self.args_template, self.config_handler._binding_source())
+        self.args_config, self._unresolved = self.config_handler._resolve_template(
+            self.args_template)
         self.property_names = list(self.args_config.keys())
         self.job_path = cocina_path(
             re.sub(YAML_EXT_REGX, '', job or config_path),
@@ -762,8 +767,10 @@ class ConfigArgs:
 
         Delegates to ``ConfigHandler.bind`` (which re-resolves the shared config from
         its pristine template), then re-resolves this instance's arg-sections from
-        ``self.args_template`` and rebuilds the ``ca.<section>.args`` / ``.kwargs``
-        wrappers. Only this instance's wrappers refresh.
+        ``self.args_template`` using transitive config references and terminal
+        bindings. Missing leaves remain deferred, and cycles remain unresolved until
+        changed or broken. Rebuilds the ``ca.<section>.args`` / ``.kwargs`` wrappers;
+        only this instance's wrappers refresh.
 
         Usage:
             ```python
@@ -788,8 +795,8 @@ class ConfigArgs:
         # _resolve_bind_args normalizes here; ConfigHandler.bind re-normalizes the merged kwargs (idempotent, intentional)
         merged = _resolve_bind_args(self.config_handler.project_root, args, values)
         self.config_handler.bind(rebind=rebind, **merged)
-        self.args_config, self._unresolved = resolve_markers(
-            self.args_template, self.config_handler._binding_source())
+        self.args_config, self._unresolved = self.config_handler._resolve_template(
+            self.args_template)
         self._set_arg_kwargs()
         return self
 

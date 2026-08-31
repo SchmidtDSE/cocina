@@ -23,6 +23,17 @@ def test_binds_arg_sections(job_args):
     assert job_args.run.kwargs == {'out_dir': 'out/owl/v4', 'limit': 5}
 
 
+def test_args_resolve_through_transitive_config_source(cocina_project):
+    (cocina_project / 'config' / 'config.yaml').write_text(
+        'VERSION: v4\nMODEL: "[[VERSION]]"\n')
+    (cocina_project / 'config' / 'args' / 'my_job.yaml').write_text(
+        'run:\n  kwargs:\n    out: "runs/[[MODEL]]/data"\n')
+    handler = ConfigHandler(search_directory=str(cocina_project))
+    args = ConfigArgs('my_job', config_handler=handler)
+    assert args.run.kwargs['out'] == 'runs/v4/data'
+    assert args.unresolved() == []
+
+
 def test_binds_config_values(job_args):
     job_args.bind(MODEL='owl')
     assert job_args.RESULTS == 'b/owl/r.jsonl'

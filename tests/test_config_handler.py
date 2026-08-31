@@ -7,6 +7,60 @@ def test_marker_resolves_from_config_sibling_at_load(make_handler):
     assert handler.config == {'BUCKET': 'b', 'OUT': 'b/out'}
 
 
+def test_config_reference_chain_resolves_at_load(make_handler):
+    handler = make_handler(
+        'VERSION: v4\nMODEL: "[[VERSION]]"\n'
+        'OUT: "runs/[[MODEL]]/data"\n')
+    assert handler.config == {
+        'VERSION': 'v4', 'MODEL': 'v4', 'OUT': 'runs/v4/data'}
+    assert handler.unresolved() == []
+
+
+def test_deferred_leaf_resolves_entire_chain_after_bind(make_handler):
+    with pytest.warns(UserWarning, match='VERSION'):
+        handler = make_handler(
+            'MODEL: "[[VERSION]]"\nOUT: "runs/[[MODEL]]/data"\n')
+    assert handler.config['OUT'] == 'runs/VERSION/data'
+    assert handler.unresolved() == ['[[VERSION]]']
+
+    handler.bind(VERSION='v4')
+    assert handler.config['MODEL'] == 'v4'
+    assert handler.config['OUT'] == 'runs/v4/data'
+    assert handler.unresolved() == []
+    assert handler.template['MODEL'] == '[[VERSION]]'
+
+
+def test_rebind_reresolves_transitive_dependents(make_handler):
+    handler = make_handler(
+        'MODEL: "[[VERSION]]"\nOUT: "runs/[[MODEL]]/data"\n')
+    handler.bind(VERSION='v4')
+    handler.bind(VERSION='v5', rebind=True)
+    assert handler.config['MODEL'] == 'v5'
+    assert handler.config['OUT'] == 'runs/v5/data'
+
+
+def test_binding_breaks_config_reference_cycle(make_handler, recwarn):
+    handler = make_handler(
+        'A: "[[B]]"\nB: "[[A]]"\nOUT: "[[A]]"\n')
+    assert set(handler.unresolved()) == {'[[A]]', '[[B]]'}
+    assert list(recwarn) == []
+
+    handler.bind(A='ready')
+    assert handler.config == {'A': 'ready', 'B': 'ready', 'OUT': 'ready'}
+    assert handler.unresolved() == []
+
+
+def test_handler_passes_marker_shaped_binding_as_terminal(make_handler, recwarn):
+    with pytest.warns(UserWarning, match='MODEL'):
+        handler = make_handler('OUT: "[[MODEL]]"\n')
+    recwarn.clear()
+
+    handler.bind(MODEL='[[VERSION]]')
+    assert handler.config['OUT'] == '[[VERSION]]'
+    assert handler.unresolved() == []
+    assert list(recwarn) == []
+
+
 def test_template_is_pristine_and_config_is_derived(make_handler):
     with pytest.warns(UserWarning, match='MODEL'):        # warns at construction
         handler = make_handler('P: "run/[[MODEL]]/x"\n')
