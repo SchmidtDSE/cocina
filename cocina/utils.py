@@ -15,6 +15,8 @@ import sys
 import importlib.util
 import functools
 import re
+import os
+import warnings
 import inspect
 import yaml
 import json
@@ -23,8 +25,8 @@ from pathlib import Path
 from typing import Any, List, Optional, Union
 from types import ModuleType
 from cocina.constants import (
-    COCINA_NOT_FOUND, KEY_STR_REGEX,
-    DEFERRED_MARKER_PREFIX, DEFERRED_MARKER_SUFFIX, DEFERRED_KEYED_IDENTIFIER)
+    COCINA_NOT_FOUND, KEY_STR_REGEX, MARKER_REGEX, ENV_VAR_REGEX,
+    COCINA_ENV_MARKER, ENV_NAMESPACE_PREFIX, COCINA_NAMESPACE_PREFIX)
 
 
 #
@@ -34,6 +36,9 @@ MAX_DIR_SEARCH_DEPTH: int = 6
 TIME_FORMAT: str = '%H:%M:%S'
 DATE_TIME_FORMAT: str = '%Y.%m.%d %H:%M:%S'
 TIME_STAMP_FORMAT: str = '%Y%m%d-%H%M%S'
+_MARKER_RE = re.compile(MARKER_REGEX)
+_RESIDUAL_RE = re.compile(r'(?<!\\)\[\[[^\[\]]+\]\]')
+_ESCAPE_RE = re.compile(r'\\(\[\[[^\[\]]+\]\])')
 
 
 #
@@ -285,53 +290,6 @@ def replace_dictionary_values(value: Any, update_dict: dict) -> Any:
         return value
 
 
-def keyed_replace_dictionary_values(
-        value: dict,
-        open_marker: str = '<<',
-        close_marker: str = '>>',
-        accepted_regex: str =  KEY_STR_REGEX,
-        clean_path: bool =  True,
-        **direct_replacements) -> dict:
-    """Replace dictionary values using keyed markers and direct replacements.
-
-    Recursively processes a dictionary to replace values containing marker patterns
-    with corresponding values from the same dictionary. Also applies direct string
-    replacements and optionally cleans up double slashes in paths.
-
-    Args:
-        value: Dictionary to process for value replacement
-        open_marker: Opening marker pattern (default: '<<')
-        close_marker: Closing marker pattern (default: '>>')
-        accepted_regex: Regex pattern for valid keys (default: KEY_STR_REGEX)
-        clean_path: Whether to clean double slashes in paths (default: True)
-        **direct_replacements: Direct key-value string replacements to apply
-
-    Returns:
-        Dictionary with replaced values
-
-    Usage:
-        ```python
-        config = {
-            'host': 'localhost',
-            'url': 'http://<<host>>/api'
-        }
-        result = keyed_replace_dictionary_values(config)
-        # result['url'] becomes 'http://localhost/api'
-        ```
-    """
-    regex = f'{open_marker}{accepted_regex}{close_marker}'
-    value_str = json.dumps(value)
-    markers = re.findall(regex, value_str)
-    for m in markers:
-        key = m.strip(open_marker).strip(close_marker)
-        value_str = re.sub(m, value[key], value_str)
-    for k, v in direct_replacements.items():
-        value_str = re.sub(k, v or '', value_str)
-    if clean_path:
-        value_str = clean_path_string(value_str)
-    return json.loads(value_str)
-
-
 def clean_path_string(value: str) -> str:
     """
     Removes consecutive forward-slashes "/" from string,
@@ -347,56 +305,122 @@ def clean_path_string(value: str) -> str:
     return re.sub(r'(?<!:)//+', '/', value)
 
 
-def bind_deferred_values(value: Any, clean_path: bool = True, **values: Any) -> Any:
-    """Resolve deferred ``{{COCINA:KEY}}`` markers from provided runtime ``values``.
+def resolve_env_markers(value: Any, environment_name: Optional[str]) -> Any:
+    """Resolve construction-time env markers, leaving `[[KEY]]` markers literal.
 
-    Unlike ``<<KEY>>`` (resolved from sibling config at load time), ``{{COCINA:KEY}}``
-    markers are left untouched by ``process_values`` and bound later - from a value only
-    known at run time (a model-card field, a per-invocation id). Markers with no provided
-    value are left intact, so binding can happen in stages.
-
-    Values are substituted as strings: ``bind(N=1000)`` yields ``'1000'``, not ``1000``.
+    Recursively visits dict values and list items (never dict keys). `[[ENV:VAR]]`
+    resolves from ``os.environ`` and `[[COCINA:ENV]]` resolves to the environment
+    name; both warn + render empty when absent. A bare `[[KEY]]` and an escaped
+    `\\[[...]]` are left untouched for the later render pass. An invalid namespace
+    raises ``ValueError``.
 
     Args:
         value: Dictionary, list, or other value to process
-        clean_path: Whether to clean double slashes in paths (default: True)
-        **values: Runtime key-value pairs to bind
+        environment_name: The current environment name, or None if unset
 
     Returns:
-        Value with provided markers replaced
+        Value with env markers resolved and every other marker preserved
 
-    Usage:
-        ```python
-        bind_deferred_values({'p': 'run/{{COCINA:MODEL}}/x'}, MODEL='owl')
-        # {'p': 'run/owl/x'}
-        ```
-
-    Note: like all cocina markers, ``{{COCINA:KEY}}`` must appear inside a quoted
-    YAML string.
+    Raises:
+        ValueError: On a reserved-namespace typo (`[[COCINA:NOPE]]`), a malformed
+            `[[ENV:...]]` payload, or any unknown namespace.
     """
-    value_str = json.dumps(value)
-    for key, val in values.items():
-        marker = f'{DEFERRED_MARKER_PREFIX}{key}{DEFERRED_MARKER_SUFFIX}'
-        # escape before splicing into the serialised blob: runtime values may
-        # contain quotes or backslashes, which would otherwise corrupt the JSON
-        value_str = value_str.replace(marker, json.dumps(str(val))[1:-1])
-    if clean_path:
-        value_str = clean_path_string(value_str)
-    return json.loads(value_str)
+    if isinstance(value, dict):
+        return {k: resolve_env_markers(v, environment_name) for k, v in value.items()}
+    if isinstance(value, list):
+        return [resolve_env_markers(v, environment_name) for v in value]
+    if isinstance(value, str):
+        def repl(match: re.Match) -> str:
+            escape, inner = match.group(1), match.group(2)
+            if escape:
+                return match.group(0)  # escaped: leave for the render pass
+            if inner == COCINA_ENV_MARKER:
+                if environment_name:
+                    return str(environment_name)
+                warnings.warn('cocina: [[COCINA:ENV]] unresolved (no environment set)')
+                return ''
+            if inner.startswith(ENV_NAMESPACE_PREFIX):
+                var = inner[len(ENV_NAMESPACE_PREFIX):]
+                if not re.fullmatch(ENV_VAR_REGEX, var):
+                    raise ValueError(f'cocina: malformed environment marker [[{inner}]]')
+                if var in os.environ:
+                    return os.environ[var]
+                warnings.warn(f'cocina: [[ENV:{var}]] unresolved (not in os.environ)')
+                return ''
+            if inner.startswith(COCINA_NAMESPACE_PREFIX):
+                raise ValueError(
+                    f'cocina: [[{inner}]] uses reserved namespace COCINA '
+                    f'(only [[COCINA:ENV]] is valid)')
+            if ':' in inner:
+                raise ValueError(f'cocina: [[{inner}]] uses an unknown namespace')
+            return match.group(0)  # bare [[KEY]] or non-key text: leave literal
+        return clean_path_string(_MARKER_RE.sub(repl, value))
+    return value
 
 
-def unresolved_deferred(value: Any) -> list[str]:
-    """Return any ``{{COCINA:KEY}}`` markers still present.
+def resolve_markers(template: Any, source: dict) -> tuple[Any, list[str]]:
+    """Render `[[KEY]]` markers from ``source`` and report what stayed unresolved.
 
-    For a pre-run "is everything bound?" check.
+    Non-destructive: ``template`` is not mutated. First applies the legacy bare-key
+    replacement (a value equal to a source key becomes that key's value), then
+    renders `[[KEY]]` markers structurally (dict values and list items only, never
+    dict keys, never via JSON serialization). A missing key strips to its bare word
+    and warns once per distinct key across the whole pass. A reference is followed
+    only one level: a resolved value that itself contains a marker keeps that marker,
+    which is reported (covering self and mutual cycles). An escaped `\\[[...]]`
+    renders as literal `[[...]]` with no lookup or warning.
 
     Args:
-        value: Dictionary, list, or other value to inspect
+        template: The pristine template (dict/list/str/other) to resolve
+        source: Lookup for `[[KEY]]`, typically ``{**template_scalars, **bindings}``
+            with bindings winning on conflict
 
     Returns:
-        List of unbound marker strings, empty if fully bound
+        (resolved_value, unresolved_markers) where unresolved_markers is an
+        order-preserving, de-duplicated list of full marker strings, e.g.
+        ``['[[MODEL]]', '[[VERSION]]']``
     """
-    return re.findall(DEFERRED_KEYED_IDENTIFIER, json.dumps(value))
+    prepared = replace_dictionary_values(template, source)  # legacy bare-key feature
+    unresolved: list[str] = []
+    resolved = _render_markers(prepared, source, unresolved, set())
+    seen: list[str] = []
+    for marker in unresolved:
+        if marker not in seen:
+            seen.append(marker)
+    return resolved, seen
+
+
+def _render_markers(value: Any, source: dict, unresolved: list[str], warned: set) -> Any:
+    """Recursive worker for ``resolve_markers`` (visits values only, never keys)."""
+    if isinstance(value, dict):
+        return {k: _render_markers(v, source, unresolved, warned) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_render_markers(v, source, unresolved, warned) for v in value]
+    if isinstance(value, str):
+        def repl(match: re.Match) -> str:
+            escape, inner = match.group(1), match.group(2)
+            if escape:
+                return match.group(0)  # escaped: stripped after the residual scan
+            if re.fullmatch(KEY_STR_REGEX, inner):
+                if inner in source:
+                    return str(source[inner])  # single pass: not re-scanned
+                unresolved.append(f'[[{inner}]]')
+                if inner not in warned:
+                    warnings.warn(f'cocina: [[{inner}]] unresolved')
+                    warned.add(inner)
+                return inner  # strip brackets to the bare word
+            return match.group(0)  # non-key text: leave literal
+        rendered = clean_path_string(_MARKER_RE.sub(repl, value))
+        # residual (non-chained) markers introduced by substituted values, excluding
+        # escaped literals; only valid-key-shaped brackets count (non-key bracket
+        # text, e.g. `[[Page Title]]`, is left literal and not reported - same test
+        # as the callback's literal branch above); then remove the escape so
+        # `\[[X]]` renders as `[[X]]`
+        for residual in _RESIDUAL_RE.findall(rendered):
+            if re.fullmatch(KEY_STR_REGEX, residual[2:-2]):
+                unresolved.append(residual)
+        return _ESCAPE_RE.sub(r'\1', rendered)
+    return value
 
 
 def safe_join(
