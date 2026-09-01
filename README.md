@@ -22,6 +22,7 @@ Cocina is a collection of tools for building structured Python projects. It prov
 - [Configuration Files](#configuration-files)
   - [ConfigHandler](#confighandler)
   - [ConfigArgs](#configargs)
+  - [Markers & Templates](#markers--templates)
 - [CLI](#cli)
   - [Initialize Project](#initialize-project)
   - [Run Jobs](#run-jobs)
@@ -260,6 +261,136 @@ ca.extract_data.kwargs   # {"limit": 1000, "debug": False}
 - Environment-specific overrides
 - Reference resolution from main config
 - Dynamic value substitution 
+
+### Markers & Templates
+
+Cocina resolves one bracket grammar, `[[…]]`, against a non-destructive template.
+Config loads into a template in which only environment markers are resolved; every
+`[[KEY]]` reference stays literal and is re-resolved from the config and any bound
+values each time you call `bind()`.
+
+```yaml
+# config/config.yaml
+OUTPUT_DIR: "runs/[[COCINA:ENV]]"
+RESULTS_FILE: "[[OUTPUT_DIR]]/[[MODEL_NAME]]/[[MODEL_VERSION]]/results.jsonl"
+```
+
+```python
+ca = ConfigArgs('run_batch')
+ca.RESULTS_FILE   # 'runs/prod/MODEL_NAME/MODEL_VERSION/results.jsonl'  (+ warnings)
+
+ca.bind(MODEL_NAME='owl', MODEL_VERSION='v4')
+ca.RESULTS_FILE   # 'runs/prod/owl/v4/results.jsonl'
+```
+
+References can chain through other config keys, regardless of YAML key order:
+
+```yaml
+MODEL: '[[VERSION]]'
+OUT: 'runs/[[MODEL]]/data'
+```
+
+```text
+bind(VERSION='v4')
+
+MODEL       v4
+OUT         runs/v4/data
+unresolved  []
+```
+
+**Markers at a glance:**
+
+| Form | Meaning | Resolved when | If missing |
+|---|---|---|---|
+| `[[KEY]]` | another config key, or a bound value | lazily, on every resolution pass | bare word + warning |
+| `[[ENV:VAR]]` | `os.environ["VAR"]` | once, at load | empty + warning |
+| `[[COCINA:ENV]]` | the environment *name* | once, at load | empty + warning |
+
+`ENV` and `COCINA` are reserved namespaces; `COCINA` has exactly one member,
+`[[COCINA:ENV]]`. Malformed `[[ENV:…]]` markers and any other `[[COCINA:…]]`
+member raise `ValueError` at load. Unrecognized namespaces such as
+`[[SECRET:TOKEN]]` remain literal.
+
+**Binding in stages.** A `[[KEY]]` with no value renders as its bare word (and warns),
+so you can bind as values become known and check what is outstanding:
+
+```python
+ca.bind(MODEL_NAME='owl')
+ca.unresolved()                # ['[[MODEL_VERSION]]']
+ca.bind(MODEL_VERSION='v4')
+ca.unresolved()                # []
+
+assert not ca.unresolved(), ca.unresolved()   # optional pre-run guard (never warns)
+```
+
+**Re-binding.** Because every bind re-resolves from the pristine template, a bound key
+can be changed with `rebind=True`. Re-binding a key to the *same* value is a silent
+no-op; a *different* value raises unless you pass `rebind=True`:
+
+```python
+ca.bind(MODEL_NAME='owl')
+ca.bind(MODEL_NAME='birdnet')                 # raises ValueError
+ca.bind(MODEL_NAME='birdnet', rebind=True)    # re-resolves from template
+```
+
+Bound values override a config-defined value for the same key.
+
+**Binding from a file or dict.** Like `update()`, `bind()` also takes a yaml path
+and/or dict positionally — handy for binding a whole model card at once:
+
+```python
+ca.bind('cards/owl-v4.yaml')      # path, relative to project root
+ca.bind(card_dict)                # or an already-loaded dict
+```
+
+A key provided by more than one source in the same call — two positional sources, or a
+positional source and a kwarg — raises rather than picking one silently. To override
+part of a loaded card, make the override explicit before binding:
+
+```python
+card = read_yaml('cards/owl-v4.yaml')
+card['MODEL_VERSION'] = 'v5'
+ca.bind(card)
+```
+
+**Literal brackets.** There is no escape character. Bracket text that isn't a bare
+key or a known namespace is left exactly as written — anything with a space or an
+unrecognized `namespace:` (e.g. `[[Page Title]]`, `[[09:00]]`, `[[step:2]]`) passes
+through literally, and a backslash before `[[` is an ordinary character (so Windows
+paths like `C:\[[MODEL]]\runs` render correctly).
+
+**Migrating from the old grammar.** The three previous markers collapse into one:
+
+| Old | New |
+|---|---|
+| `<<KEY>>` | `[[KEY]]` |
+| `[[COCINA:ENV]]` | `[[COCINA:ENV]]` (unchanged) |
+| `{{COCINA:MODEL}}` | `[[MODEL]]` |
+
+This is a breaking change: `<<KEY>>` and `{{COCINA:KEY}}` are no longer markers and
+are left as literal text. A missing reference that used to hard-fail (`<<KEY>>`) now
+renders as its bare word plus a warning.
+
+**Notes:**
+- Like all cocina markers, `[[…]]` must sit inside a quoted YAML string.
+- Resolved values are substituted as strings: `bind(N=1000)` gives `'1000'`.
+- Config references resolve transitively and independently of YAML key order. Runtime
+  bindings are terminal overrides; marker-shaped text inside a bound value is not
+  interpreted as another dependency.
+- Missing leaves warn and remain in `unresolved()` until a later bind supplies them.
+  Self and mutual cycles are reported without warning and can be broken by binding
+  one of their keys.
+- `ConfigHandler` is a singleton, so bindings apply process-wide.
+- Ordinary template strings using other delimiters (`{{jinja}}`, `${shell}`) are left
+  untouched — they are not `[[…]]`.
+- `bind()` resolves config values only, never `constants.py`. Constants are protected
+  and are not templated.
+- Constructing a `ConfigArgs` calls `update()`, which replaces the config template and
+  re-resolves it with the existing bindings — so binding order and update order compose
+  predictably.
+- Reference keys must match `[a-zA-Z][a-zA-Z0-9_-]*`; `[[ENV:VAR]]` names may also
+  contain dots and hyphens (`[A-Za-z_][A-Za-z0-9_.-]*`).
+- A `[[KEY]]` reference resolves from a **string-valued** top-level config key or from any bound value; a config key whose value is a number, list, or mapping is not usable as a reference source, so the marker renders as its bare word (with a warning) until you bind that key.
 
 ---
 

@@ -21,11 +21,11 @@ from types import ModuleType
 from dataclasses import dataclass, field
 from cocina.constants import (
     COCINA_CONFIG_FILENAME, YAML_EXT_REGX, COCINA_NOT_FOUND,
-    ENVIRONMENT_KEYED_IDENTIFIER, cocina_env_key, PY_EXT_REGX
+    cocina_env_key, PY_EXT_REGX
 )
 from cocina.utils import (
-    singleton, safe_join, dir_search, read_yaml, replace_dictionary_values,
-    keyed_replace_dictionary_values, import_module_from_path
+    singleton, safe_join, dir_search, read_yaml, import_module_from_path,
+    resolve_env_markers, resolve_markers
 )
 
 
@@ -100,6 +100,58 @@ def cocina_path(
         if config_name:
             parts.append(config_name)
     return safe_join(*parts, ext=ext)
+
+
+def _resolve_bind_args(
+        project_root: str,
+        args: Sequence[Union[str, dict]],
+        values: dict) -> dict:
+    """Merge ``bind()`` positional args (yaml paths and/or dicts) and kwargs into one dict.
+
+    Handles the str/dict positional args the same way ``ConfigHandler.update`` does -
+    a str is a path to a yaml file (relative to <project_root> unless absolute), a dict
+    is merged directly. Unlike ``update``, a key provided by more than one source raises
+    rather than letting the later source silently win: ``bind()`` already refuses to
+    silently resolve a conflict across calls (the rebind guard in ``ConfigHandler.bind``),
+    so the same key showing up twice within one call is the same footgun and gets the
+    same treatment.
+
+    Args:
+        project_root: Project root directory, used to resolve string paths
+        args: Positional args passed to ``bind()``
+        values: Keyword args passed to ``bind()``
+
+    Returns:
+        Merged dict of key-value pairs to bind
+
+    Raises:
+        ValueError: If an arg is not a str or dict, or if a key is provided by
+            more than one source (positional or keyword)
+    """
+    merged: dict = {}
+    for arg in args:
+        if isinstance(arg, dict):
+            source = arg
+        elif isinstance(arg, str):
+            path = cocina_path(arg, project_root, ext_regex=YAML_EXT_REGX, ext='.yaml')
+            source = read_yaml(path, safe=True)
+        else:
+            err = (
+                'ch.bind arg must be either '
+                'a string (path to a yaml file), or '
+                'a dict (key-value pairs to bind)')
+            raise ValueError(err)
+        repeats = set(source) & set(merged)
+        if repeats:
+            raise ValueError(
+                f'cocina: bind() got {sorted(repeats)} from more than one source')
+        merged.update(source)
+    repeats = set(values) & set(merged)
+    if repeats:
+        raise ValueError(
+            f'cocina: bind() got {sorted(repeats)} from both *args and **values')
+    merged.update(values)
+    return merged
 
 
 def get_project_root(
@@ -260,11 +312,18 @@ class ConfigHandler:
         configure how configuration files are loaded.
 
     Special Value Processing:
-        ConfigHandler supports special string patterns in configuration values:
-        - `<<KEY_NAME>>`: Replaced with the value of KEY_NAME from the configuration
-        - `[[COCINA:ENV]]`: Replaced with the current environment name or stripped if not set
+        ConfigHandler resolves `[[...]]` markers in configuration values:
+        - `[[KEY]]`: a transitive config reference; a bound value is a terminal
+          override (missing leaves -> bare word + warning)
+        - `[[ENV:VAR]]`: an environment variable (resolved once, at load)
+        - `[[COCINA:ENV]]`: the current environment name (resolved once, at load)
 
-        These patterns enable dynamic configuration values and environment-specific settings.
+        `[[KEY]]` markers stay literal in the template and are re-resolved from
+        the config dependency source plus bindings on every `bind()`. Missing leaves
+        remain deferred until bound, and cycles stay unresolved until changed or
+        broken by a binding. There is no escape: bracket text that isn't a bare key
+        or a known namespace (a space, colon, or other non-key content, e.g.
+        `[[Page Title]]` or `[[09:00]]`) is left literal.
 
     Usage:
         ```python
@@ -336,72 +395,104 @@ class ConfigHandler:
             constants: Optional ModuleType. if provided <package_locator> ignored,
                 and ch.constants = <constants>
         """
+        self._bindings: dict = {}
+        self._unresolved: list[str] = []
         self.project_root = get_project_root(search_directory=search_directory)
         self.cocina = CocinaConfig.init_for_project(self.project_root)
         self.constants = constants or self._import_constants(package_locator)
-        self.config, self.environment_name = self._config_and_environment()
-        self.config = self.process_values(self.config)
+        raw_config, self.environment_name = self._config_and_environment()
+        self.template = resolve_env_markers(raw_config, self.environment_name)
         self._check_protected_keys()
+        self._resolve()
 
     def update(self, *args: Union[str, dict], **kwargs) -> None:
-        """Update configuration with YAML files, dictionaries, or keyword arguments.
+        """Replace the config template with a newly merged copy, then re-resolve.
 
-        Supports multiple update methods: loading from YAML files (via string paths),
-        merging dictionary data, or updating with keyword arguments. All updates
-        are validated against protected constants.
+        Reads all update inputs (yaml paths and/or dicts) plus keyword arguments,
+        merges them into a copy of ``self.template`` using shallow ``dict.update``
+        precedence, freezes construction-time env markers in the newly admitted
+        values, and re-derives ``self.config`` with the existing bindings. A binding
+        still wins when an update defines the same key.
 
         Args:
-            *args: Variable arguments supporting:
-                - str: Path to YAML file to load and merge (absolute or relative to project root)
-                - dict: Dictionary of key-value pairs to merge into configuration
-            **kwargs: Key-value pairs to update configuration with
+            *args: str (path to a yaml file, absolute or relative to project root)
+                and/or dict of key-value pairs to merge.
+            **kwargs: Key-value pairs to merge.
 
         Raises:
-            ValueError: If arguments are invalid type or configuration conflicts with constants
-            FileNotFoundError: If YAML file path cannot be found
+            ValueError: If an argument is not a str or dict, or the merged config
+                would overwrite a protected constant.
         """
+        updates: dict = {}
         for arg in args:
             if isinstance(arg, dict):
-                self.config.update(arg)
+                updates.update(arg)
             elif isinstance(arg, str):
                 path = cocina_path(
-                    arg,
-                    self.project_root,
-                    ext_regex=YAML_EXT_REGX,
-                    ext='.yaml')
-                yaml_config = read_yaml(path, safe=True)
-                self.config.update(yaml_config)
+                    arg, self.project_root, ext_regex=YAML_EXT_REGX, ext='.yaml')
+                updates.update(read_yaml(path, safe=True))
             else:
                 err = (
                     'ch.update arg must be either '
                     'a string (path to config-file), or '
                     'a dict (key-value pairs to update config)')
                 raise ValueError(err)
-        self.config.update(kwargs)
-        self.config = self.process_values(self.config)
+        updates.update(kwargs)
+        admitted = resolve_env_markers(updates, self.environment_name)
+        new_template = {**self.template, **admitted}
+        self.template = new_template
         self._check_protected_keys()
+        self._resolve()
 
-    def process_values(self, config: dict) -> dict:
-        """Process configuration values by replacing string keys.
+    def bind(self, *args: Union[str, dict], rebind: bool = False, **values: Any) -> None:
+        """Bind runtime values and re-resolve the config from the pristine template.
 
-        Given a configuration dict, replace all values that are strings whose
-        and whose value is in config-handler-instance.
+        Config references resolve transitively, while bindings are terminal overrides.
+        `[[KEY]]` missing leaves are left as bare words and reported by ``unresolved``
+        until values become known; cycles remain unresolved until changed or broken.
+        Because every bind re-resolves from ``self.template`` rather than editing a
+        substituted string, changing a bound key is possible with ``rebind=True``.
 
-        This method uses the `keyed_replace_dictionary_values` utility to perform
-        dynamic string replacement with special patterns:
-        - `<<A_KEY_THAT_EXISTS>>`: Replaced with the value of A_KEY_THAT_EXISTS from the configuration
-        - `[[COCINA:ENV]]`: Replaced with the current environment name or stripped if not set
+        Usage:
+            ```python
+            ch.bind(MODEL_NAME='owl', MODEL_VERSION='v4')
+            ch.bind('cards/owl-v4.yaml')
+            ch.bind(MODEL_NAME='birdnet', rebind=True)
+            ```
 
         Args:
-            config: Configuration dictionary to process
+            *args: Same as ``update`` - str (path to yaml file) and/or dict.
+            rebind: Allow changing an already-bound key to a different value.
+            **values: Runtime key-value pairs to bind. A key given by more than one
+                source in a single call raises rather than silently picking one.
+
+        Raises:
+            ValueError: If an arg is not a str or dict, a key is provided by more than
+                one source in this call, or a key is already bound to a different value
+                and ``rebind`` is False.
+        """
+        merged = _resolve_bind_args(self.project_root, args, values)
+        if not rebind:
+            conflicts = {
+                k for k, v in merged.items()
+                if k in self._bindings and self._bindings[k] != v}
+            if conflicts:
+                raise ValueError(
+                    f'cocina: keys already bound, pass rebind=True to change: '
+                    f'{sorted(conflicts)}')
+        self._bindings.update(merged)
+        self._resolve()
+
+    def unresolved(self) -> list[str]:
+        """`[[KEY]]` markers unresolved in the current config view (non-warning).
+
+        Reports deferred missing leaves and references participating in cycles. Safe
+        for a pre-run guard, e.g. ``assert not ch.unresolved()``.
 
         Returns:
-            Processed configuration dictionary with replaced values
+            Order-preserving, de-duplicated list of unresolved marker strings.
         """
-        config = replace_dictionary_values(config, self.config)
-        replacements = {ENVIRONMENT_KEYED_IDENTIFIER: self.environment_name}
-        config = keyed_replace_dictionary_values(config, **replacements)
-        return config
+        return list(self._unresolved)
 
     def get(self, key: str, default: Any = None) -> Any:
         """Get configuration value with default fallback.
@@ -557,20 +648,33 @@ class ConfigHandler:
             config.update(read_yaml(env_path, safe=True))
         return config, environment_name
 
+    def _config_source(self) -> dict:
+        """Raw string-valued top-level config scalars used as dependency nodes."""
+        return {
+            key: value
+            for key, value in self.template.items()
+            if isinstance(value, str)}
+
+    def _resolve_template(self, template: Any) -> tuple[Any, list[str]]:
+        """Resolve a template from config dependencies and terminal bindings."""
+        return resolve_markers(
+            template, self._config_source(), bindings=self._bindings)
+
+    def _resolve(self) -> None:
+        """Recompute config and unresolved markers from the pristine template."""
+        self.config, self._unresolved = self._resolve_template(self.template)
+
     def _check_protected_keys(self) -> None:
         """Ensure user's config files do not overwrite constants.py values.
-        
+
         Raises:
-            ValueError: If configuration attempts to overwrite constants
+            ValueError: If the config template defines a key protected by constants
         """
         if self.constants:
-            protected_keys = dir(self.constants)
-            protected_keys = [k for k in protected_keys if str(k)[0] != '_']
-            if protected_keys:
-                for key in protected_keys:
-                    config_keys = self.config.keys()
-                    if key in config_keys:
-                        raise ValueError('Configuration cannot overwrite constants')
+            protected_keys = [k for k in dir(self.constants) if str(k)[0] != '_']
+            for key in protected_keys:
+                if key in self.template:
+                    raise ValueError('Configuration cannot overwrite constants')
 
 
 class ConfigArgs:
@@ -583,7 +687,8 @@ class ConfigArgs:
     The class performs the following operations:
     1. Sets up ConfigHandler for configuration management
     2. Loads argument configuration from specified path
-    3. Processes configuration with environment-specific overrides
+    3. Resolves `[[...]]` markers in the arg-sections through an instance-local
+       `args_template`, using transitive config dependencies and terminal bindings
     4. Creates ArgsKwargs attributes for each method in the config
 
     Path Resolution:
@@ -629,7 +734,10 @@ class ConfigArgs:
         job, args_config, config = self._args_data(config_path, user_config, config_name=config_name)
 
         self.config_handler.update(config)
-        self.args_config = self.config_handler.process_values(args_config)
+        self.args_template = resolve_env_markers(
+            args_config, self.config_handler.environment_name)
+        self.args_config, self._unresolved = self.config_handler._resolve_template(
+            self.args_template)
         self.property_names = list(self.args_config.keys())
         self.job_path = cocina_path(
             re.sub(YAML_EXT_REGX, '', job or config_path),
@@ -653,6 +761,59 @@ class ConfigArgs:
             Imported job module object
         """
         return import_module_from_path(self.job_path)
+
+    def bind(self, *args: Union[str, dict], rebind: bool = False, **values: Any) -> "ConfigArgs":
+        """Bind runtime values into the shared config and this job's arg-sections.
+
+        Delegates to ``ConfigHandler.bind`` (which re-resolves the shared config from
+        its pristine template), then re-resolves this instance's arg-sections from
+        ``self.args_template`` using transitive config references and terminal
+        bindings. Missing leaves remain deferred, and cycles remain unresolved until
+        changed or broken. Rebuilds the ``ca.<section>.args`` / ``.kwargs`` wrappers;
+        only this instance's wrappers refresh.
+
+        Usage:
+            ```python
+            ca.bind(MODEL_NAME=card.model_name, MODEL_VERSION=card.model_version)
+            ca.bind('cards/owl-v4.yaml')
+            ca.bind(MODEL_NAME='birdnet', rebind=True)
+            ```
+
+        Args:
+            *args: Same as ``ConfigHandler.bind`` - str (path to yaml file) and/or dict.
+            rebind: Allow changing an already-bound key to a different value.
+            **values: Runtime key-value pairs to bind.
+
+        Returns:
+            self, for chaining
+
+        Raises:
+            ValueError: If an arg is not a str or dict, a key is provided by more than
+                one source in this call, or a key is already bound to a different value
+                and ``rebind`` is False.
+        """
+        # _resolve_bind_args normalizes here; ConfigHandler.bind re-normalizes the merged kwargs (idempotent, intentional)
+        merged = _resolve_bind_args(self.config_handler.project_root, args, values)
+        self.config_handler.bind(rebind=rebind, **merged)
+        self.args_config, self._unresolved = self.config_handler._resolve_template(
+            self.args_template)
+        self._set_arg_kwargs()
+        return self
+
+    def unresolved(self) -> list[str]:
+        """`[[KEY]]` markers unresolved in the shared config or this job's arg-sections.
+
+        Unions the handler's unresolved markers with this instance's, preserving
+        first-seen order and dropping duplicates. Non-warning.
+
+        Returns:
+            Order-preserving, de-duplicated list of unresolved marker strings.
+        """
+        seen: list[str] = []
+        for marker in list(self.config_handler.unresolved()) + list(self._unresolved):
+            if marker not in seen:
+                seen.append(marker)
+        return seen
 
     def get(self, key: str, default: Any = None) -> Any:
         """get properties of config_handler and config args as attributes with default fallback.

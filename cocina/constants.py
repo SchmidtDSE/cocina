@@ -28,9 +28,21 @@ ICON_START = "🚀"
 ICON_FAILED = "❌"
 ICON_SUCCESS = "✅"
 
-# config/args keyed-identifiers
-# - auto-update config/args with env
-ENVIRONMENT_KEYED_IDENTIFIER: str = r'\[\[COCINA:ENV\]\]'
+# unified [[...]] marker grammar
+# - one bracket, an optional NAMESPACE: prefix inside [[...]]
+# - MARKER_REGEX captures the inner expression (group 1); there is no escape,
+#   so a backslash before `[[` is an ordinary character (e.g. a Windows path)
+MARKER_REGEX: str = r'\[\[([^\[\]]+)\]\]'
+
+# environment-variable names for [[ENV:VAR]] (dotted + hyphenated allowed:
+# the project already reads the dotted `cocina.ENV_KEY`)
+ENV_VAR_REGEX: str = r'[A-Za-z_][A-Za-z0-9_.-]*'
+
+# reserved namespaces: ENV (os.environ) and COCINA (cocina-internal;
+# currently the single member COCINA:ENV, the environment *name*)
+COCINA_ENV_MARKER: str = 'COCINA:ENV'
+ENV_NAMESPACE_PREFIX: str = 'ENV:'
+COCINA_NAMESPACE_PREFIX: str = 'COCINA:'
 
 # environment variables
 # - env-key to store "env-name" to manage environment-specific configs/args

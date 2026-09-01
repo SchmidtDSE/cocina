@@ -15,6 +15,8 @@ import sys
 import importlib.util
 import functools
 import re
+import os
+import warnings
 import inspect
 import yaml
 import json
@@ -22,7 +24,9 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, List, Optional, Union
 from types import ModuleType
-from cocina.constants import COCINA_NOT_FOUND, KEY_STR_REGEX
+from cocina.constants import (
+    COCINA_NOT_FOUND, KEY_STR_REGEX, MARKER_REGEX, ENV_VAR_REGEX,
+    COCINA_ENV_MARKER, ENV_NAMESPACE_PREFIX, COCINA_NAMESPACE_PREFIX)
 
 
 #
@@ -32,6 +36,7 @@ MAX_DIR_SEARCH_DEPTH: int = 6
 TIME_FORMAT: str = '%H:%M:%S'
 DATE_TIME_FORMAT: str = '%Y.%m.%d %H:%M:%S'
 TIME_STAMP_FORMAT: str = '%Y%m%d-%H%M%S'
+_MARKER_RE = re.compile(MARKER_REGEX)
 
 
 #
@@ -283,53 +288,6 @@ def replace_dictionary_values(value: Any, update_dict: dict) -> Any:
         return value
 
 
-def keyed_replace_dictionary_values(
-        value: dict,
-        open_marker: str = '<<',
-        close_marker: str = '>>',
-        accepted_regex: str =  KEY_STR_REGEX,
-        clean_path: bool =  True,
-        **direct_replacements) -> dict:
-    """Replace dictionary values using keyed markers and direct replacements.
-
-    Recursively processes a dictionary to replace values containing marker patterns
-    with corresponding values from the same dictionary. Also applies direct string
-    replacements and optionally cleans up double slashes in paths.
-
-    Args:
-        value: Dictionary to process for value replacement
-        open_marker: Opening marker pattern (default: '<<')
-        close_marker: Closing marker pattern (default: '>>')
-        accepted_regex: Regex pattern for valid keys (default: KEY_STR_REGEX)
-        clean_path: Whether to clean double slashes in paths (default: True)
-        **direct_replacements: Direct key-value string replacements to apply
-
-    Returns:
-        Dictionary with replaced values
-
-    Usage:
-        ```python
-        config = {
-            'host': 'localhost',
-            'url': 'http://<<host>>/api'
-        }
-        result = keyed_replace_dictionary_values(config)
-        # result['url'] becomes 'http://localhost/api'
-        ```
-    """
-    regex = f'{open_marker}{accepted_regex}{close_marker}'
-    value_str = json.dumps(value)
-    markers = re.findall(regex, value_str)
-    for m in markers:
-        key = m.strip(open_marker).strip(close_marker)
-        value_str = re.sub(m, value[key], value_str)
-    for k, v in direct_replacements.items():
-        value_str = re.sub(k, v or '', value_str)
-    if clean_path:
-        value_str = clean_path_string(value_str)
-    return json.loads(value_str)
-
-
 def clean_path_string(value: str) -> str:
     """
     Removes consecutive forward-slashes "/" from string,
@@ -343,6 +301,141 @@ def clean_path_string(value: str) -> str:
     """
     value = re.sub(r'(://)/+', r'\1', value)
     return re.sub(r'(?<!:)//+', '/', value)
+
+
+def resolve_env_markers(value: Any, environment_name: Optional[str]) -> Any:
+    """Resolve construction-time env markers, leaving `[[KEY]]` markers literal.
+
+    Recursively visits dict values and list items (never dict keys). `[[ENV:VAR]]`
+    resolves from ``os.environ`` and `[[COCINA:ENV]]` resolves to the environment
+    name; both warn + render empty when absent. Any other bracketed content -- a
+    bare `[[KEY]]` or unrecognized `[[x:y]]` text (a time, a URL, a namespaced
+    label) -- is left untouched for the later render pass. There is no escape: a
+    backslash before `[[` is an ordinary character.
+
+    Args:
+        value: Dictionary, list, or other value to process
+        environment_name: The current environment name, or None if unset
+
+    Returns:
+        Value with env markers resolved and every other marker preserved
+
+    Raises:
+        ValueError: On a reserved-namespace typo (`[[COCINA:NOPE]]`) or a malformed
+            `[[ENV:...]]` payload. An unrecognized namespace is left literal, not
+            raised, so ordinary colon-bearing text never crashes the load.
+    """
+    if isinstance(value, dict):
+        return {k: resolve_env_markers(v, environment_name) for k, v in value.items()}
+    if isinstance(value, list):
+        return [resolve_env_markers(v, environment_name) for v in value]
+    if isinstance(value, str):
+        def repl(match: re.Match) -> str:
+            inner = match.group(1)
+            if inner == COCINA_ENV_MARKER:
+                if environment_name:
+                    return str(environment_name)
+                warnings.warn('cocina: [[COCINA:ENV]] unresolved (no environment set)')
+                return ''
+            if inner.startswith(ENV_NAMESPACE_PREFIX):
+                var = inner[len(ENV_NAMESPACE_PREFIX):]
+                if not re.fullmatch(ENV_VAR_REGEX, var):
+                    raise ValueError(f'cocina: malformed environment marker [[{inner}]]')
+                if var in os.environ:
+                    return os.environ[var]
+                warnings.warn(f'cocina: [[ENV:{var}]] unresolved (not in os.environ)')
+                return ''
+            if inner.startswith(COCINA_NAMESPACE_PREFIX):
+                raise ValueError(
+                    f'cocina: [[{inner}]] uses reserved namespace COCINA '
+                    f'(only [[COCINA:ENV]] is valid)')
+            # bare [[KEY]], or [[x:y]] in an unrecognized namespace (a time, a
+            # URL, a label): leave literal for the render pass, don't crash
+            return match.group(0)
+        return clean_path_string(_MARKER_RE.sub(repl, value))
+    return value
+
+
+def resolve_markers(
+        template: Any,
+        source: dict,
+        *,
+        bindings: Optional[dict] = None) -> tuple[Any, list[str]]:
+    """Resolve config ``[[KEY]]`` dependencies from a pristine template.
+
+    Config scalars in ``source`` are followed with depth-first traversal; acyclic
+    results are memoized. ``bindings`` override them but are terminal and are never
+    interpreted as marker templates. Missing leaves render as bare words and warn once
+    per key. Cycles are reported without warning and can be broken by a later binding.
+    The legacy exact bare-key prepass remains unchanged. Traversal is structural: dict
+    values and list items are visited, while dict keys and non-key bracket text stay
+    literal.
+
+    Args:
+        template: The pristine template (dict/list/str/other) to resolve.
+        source: Raw config scalars available for recursive ``[[KEY]]`` resolution.
+        bindings: Optional terminal runtime overrides for config scalars.
+
+    Returns:
+        (resolved_value, unresolved_markers) where unresolved_markers is an
+        order-preserving, de-duplicated list of full marker strings.
+    """
+    terminal = {} if bindings is None else dict(bindings)
+    lookup = {**source, **terminal}
+    unresolved: list[str] = []
+    warned: set[str] = set()
+    cache: dict[str, Any] = {}
+    resolving: list[str] = []
+    cycle_tainted: set[str] = set()
+
+    def missing(key: str) -> str:
+        marker = f'[[{key}]]'
+        unresolved.append(marker)
+        if key not in warned:
+            warnings.warn(f'cocina: {marker} unresolved')
+            warned.add(key)
+        return key
+
+    def resolve_key(key: str) -> Any:
+        if key in terminal:
+            return terminal[key]
+        if key not in source:
+            return missing(key)
+        if key in cache:
+            return cache[key]
+        if key in resolving:
+            start = resolving.index(key)
+            for member in resolving[start:]:
+                unresolved.append(f'[[{member}]]')
+            # Active callers consumed cycle-derived output; none is safe to cache.
+            cycle_tainted.update(resolving)
+            return f'[[{key}]]'
+
+        resolving.append(key)
+        try:
+            result = render(source[key])
+        finally:
+            resolving.pop()
+        if key not in cycle_tainted:
+            cache[key] = result
+        return result
+
+    def render(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {key: render(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [render(item) for item in value]
+        if isinstance(value, str):
+            def replace(match: re.Match) -> str:
+                key = match.group(1)
+                if re.fullmatch(KEY_STR_REGEX, key):
+                    return str(resolve_key(key))
+                return match.group(0)
+            return clean_path_string(_MARKER_RE.sub(replace, value))
+        return value
+
+    prepared = replace_dictionary_values(template, lookup)
+    return render(prepared), list(dict.fromkeys(unresolved))
 
 
 def safe_join(
