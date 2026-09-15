@@ -204,10 +204,38 @@ def test_cycle_tainted_results_are_not_cached_across_key_orders(recwarn):
     assert list(recwarn) == []
 
 
-def test_bare_key_feature_preserved():
-    # A value that EQUALS a source key becomes that key's value (not a bracket feature).
-    resolved, _ = resolve_markers({'x': 'MODEL'}, {'MODEL': 'owl'})
-    assert resolved['x'] == 'owl'
+def test_bare_key_is_left_literal(recwarn):
+    # A value that merely EQUALS a source key is data, not a marker.
+    resolved, unresolved = resolve_markers({'x': 'MODEL'}, {'MODEL': 'owl'})
+    assert resolved['x'] == 'MODEL'
+    assert unresolved == []
+    assert list(recwarn) == []
+
+
+def test_list_of_key_names_survives_as_data(recwarn):
+    # The reported bug: a list of key NAMES used as data was silently rewritten.
+    template = {'FORWARD_KEYS': ['SPECIES', 'DATASET', 'GROUP']}
+    source = {'SPECIES': 'coyote', 'DATASET': 'coyote.dev'}
+    resolved, unresolved = resolve_markers(template, source)
+    assert resolved['FORWARD_KEYS'] == ['SPECIES', 'DATASET', 'GROUP']
+    assert unresolved == []
+    assert list(recwarn) == []
+
+
+def test_bare_key_matching_a_binding_is_left_literal(recwarn):
+    # The prepass was the only type-preserving path; an int binding no longer
+    # reaches a bare-word value as an int.
+    resolved, unresolved = resolve_markers({'limit': 'MAX_N'}, {}, bindings={'MAX_N': 5})
+    assert resolved['limit'] == 'MAX_N'
+    assert unresolved == []
+    assert list(recwarn) == []
+
+
+def test_bracketed_key_substitutes_while_bare_text_does_not():
+    resolved, unresolved = resolve_markers({'x': 'MODEL', 'y': '[[MODEL]]'}, {'MODEL': 'owl'})
+    assert resolved['x'] == 'MODEL'
+    assert resolved['y'] == 'owl'
+    assert unresolved == []
 
 
 def test_old_grammars_are_no_longer_recognized():
