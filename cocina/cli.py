@@ -1,7 +1,7 @@
-""" cli
+"""
+CLI for launching jobs
 
-License:
-    BSD, see LICENSE.md
+License: BSD-3-Clause
 """
 import os, sys
 from typing import Any, Dict, List, Optional, Tuple, Union

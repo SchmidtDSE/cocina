@@ -5,7 +5,7 @@ Cocina Config Handler
 This module provides the ConfigHandler class for managing project configuration
 using YAML files, constants, and environment variables.
 
-License: BSd 3-clause
+License: BSD-3-Clause
 
 """
 #

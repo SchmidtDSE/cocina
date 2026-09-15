@@ -7,7 +7,7 @@ name = "cocina"
 version = "0.2.0"
 description = "A collection of tools for building structured Python projects"
 readme = "README.md"
-license = {text = "BSd 3-clause"}
+license = {text = "BSD-3-Clause"}
 authors = [
   {name = "Brookie Guzder-Williams", email = "bguzder-williams@berkeley.edu"}
 ]

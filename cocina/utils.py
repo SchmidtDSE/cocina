@@ -5,7 +5,7 @@ Cocina Utilities
 This module contains utility functions and classes for the Cocina package,
 including file system operations, YAML handling, and timing functionality.
 
-License: BSd 3-clause
+License: BSD-3-Clause
 
 """
 #
