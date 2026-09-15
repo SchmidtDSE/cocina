@@ -265,29 +265,6 @@ def caller_name(max_depth=4, exclude_str='cocina') -> Union[str, None]:
 #
 # CORE
 #
-def replace_dictionary_values(value: Any, update_dict: dict) -> Any:
-    """Replace any values in value-dictionary that are keys in update_dict.
-
-    Recursively traverses dictionaries and lists, replacing string values
-    that match keys in update_dict with corresponding values.
-
-    Args:
-        value: Dictionary, list, or other value to process
-        update_dict: Dictionary containing replacement key-value pairs
-
-    Returns:
-        Processed value with replacements applied
-    """
-    if isinstance(value, dict):
-        return {k: replace_dictionary_values(v, update_dict) for k, v in value.items()}
-    elif isinstance(value, list):
-        return [replace_dictionary_values(v, update_dict) for v in value]
-    elif isinstance(value, str):
-        return update_dict.get(value, value)
-    else:
-        return value
-
-
 def clean_path_string(value: str) -> str:
     """
     Removes consecutive forward-slashes "/" from string,
@@ -367,9 +344,10 @@ def resolve_markers(
     results are memoized. ``bindings`` override them but are terminal and are never
     interpreted as marker templates. Missing leaves render as bare words and warn once
     per key. Cycles are reported without warning and can be broken by a later binding.
-    The legacy exact bare-key prepass remains unchanged. Traversal is structural: dict
-    values and list items are visited, while dict keys and non-key bracket text stay
-    literal.
+    Substitution happens only through ``[[KEY]]`` markers; a bare string that merely
+    equals a config key is ordinary data and stays literal. Traversal is structural:
+    dict values and list items are visited, while dict keys and non-key bracket text
+    stay literal.
 
     Args:
         template: The pristine template (dict/list/str/other) to resolve.
@@ -381,7 +359,6 @@ def resolve_markers(
         order-preserving, de-duplicated list of full marker strings.
     """
     terminal = {} if bindings is None else dict(bindings)
-    lookup = {**source, **terminal}
     unresolved: list[str] = []
     warned: set[str] = set()
     cache: dict[str, Any] = {}
@@ -434,8 +411,7 @@ def resolve_markers(
             return clean_path_string(_MARKER_RE.sub(replace, value))
         return value
 
-    prepared = replace_dictionary_values(template, lookup)
-    return render(prepared), list(dict.fromkeys(unresolved))
+    return render(template), list(dict.fromkeys(unresolved))
 
 
 def safe_join(
